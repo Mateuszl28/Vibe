@@ -45,6 +45,8 @@ Type=simple
 WorkingDirectory=${REPO_DIR}
 Environment=PORT=${PORT}
 Environment=HOST=0.0.0.0
+# Adres bazowy do SEO (canonical, Open Graph, sitemap). Zmien na domene gdy bedzie.
+Environment=SITE_URL=http://85.215.197.199:${PORT}
 ExecStart=${NODE_BIN} server.js
 Restart=always
 RestartSec=3

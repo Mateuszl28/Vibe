@@ -43,6 +43,67 @@ function loadProducts() {
 }
 let PRODUCTS = loadProducts();
 
+// Bazowy adres witryny (do SEO: canonical, OG, sitemap). Ustaw przez SITE_URL.
+const SITE_URL = (process.env.SITE_URL || `http://85.215.197.199:${PORT}`).replace(/\/$/, '');
+
+// ---- SEO: dane strukturalne JSON-LD ----
+function buildJsonLd() {
+  const store = {
+    '@context': 'https://schema.org',
+    '@type': 'Store',
+    name: 'Vibe',
+    description: 'Sklep ze streetwearem premium — bluzy i koszulki.',
+    url: SITE_URL + '/',
+    image: SITE_URL + '/img/og-cover.svg',
+    priceRange: '79-249 zł',
+    currenciesAccepted: 'PLN'
+  };
+  const itemList = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    itemListElement: PRODUCTS.map((p, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      item: {
+        '@type': 'Product',
+        name: p.name,
+        category: p.category === 'bluza' ? 'Bluzy' : 'Koszulki',
+        description: p.description,
+        url: SITE_URL + '/?produkt=' + p.id,
+        offers: {
+          '@type': 'Offer',
+          price: p.price.toFixed(2),
+          priceCurrency: 'PLN',
+          availability: 'https://schema.org/InStock'
+        }
+      }
+    }))
+  };
+  return `<script type="application/ld+json">${JSON.stringify([store, itemList])}</script>`;
+}
+
+// index.html z podstawionymi placeholderami SEO (budowane raz, cache w pamieci)
+let renderedIndex = null;
+function getIndexHtml() {
+  if (renderedIndex) return renderedIndex;
+  let html = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
+  html = html.replace(/__SITE_URL__/g, SITE_URL).replace('__JSONLD__', buildJsonLd());
+  renderedIndex = html;
+  return html;
+}
+function sendHtml(res, html) {
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+  res.end(html);
+}
+
+const ROBOTS_TXT = `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
+function buildSitemap() {
+  const urls = [SITE_URL + '/']
+    .concat(PRODUCTS.map((p) => SITE_URL + '/?produkt=' + p.id));
+  const body = urls.map((u) => `  <url><loc>${u}</loc><changefreq>weekly</changefreq></url>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>`;
+}
+
 // ---- pomocnicze ----
 function sendJson(res, status, obj) {
   const body = JSON.stringify(obj);
@@ -83,17 +144,13 @@ function serveStatic(req, res, urlPath) {
   }
   fs.stat(filePath, (err, stat) => {
     if (err || !stat.isFile()) {
-      // SPA fallback -> index.html
-      const fallback = path.join(PUBLIC_DIR, 'index.html');
-      fs.readFile(fallback, (e2, buf) => {
-        if (e2) {
-          res.writeHead(404);
-          res.end('404 Not Found');
-        } else {
-          res.writeHead(200, { 'Content-Type': MIME['.html'] });
-          res.end(buf);
-        }
-      });
+      // SPA fallback -> wygenerowany index.html (z danymi SEO)
+      try {
+        sendHtml(res, getIndexHtml());
+      } catch {
+        res.writeHead(404);
+        res.end('404 Not Found');
+      }
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
@@ -183,6 +240,22 @@ function handleCreateOrder(req, res, raw) {
 const server = http.createServer(async (req, res) => {
   const url = req.url || '/';
   const method = req.method || 'GET';
+  const pathOnly = url.split('?')[0];
+
+  // SEO: robots.txt i sitemap.xml
+  if (method === 'GET' && pathOnly === '/robots.txt') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end(ROBOTS_TXT);
+  }
+  if (method === 'GET' && pathOnly === '/sitemap.xml') {
+    res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8' });
+    return res.end(buildSitemap());
+  }
+
+  // Strona glowna -> wygenerowany index.html z danymi strukturalnymi
+  if (method === 'GET' && (pathOnly === '/' || pathOnly === '/index.html')) {
+    return sendHtml(res, getIndexHtml());
+  }
 
   // API
   if (url.startsWith('/api/')) {

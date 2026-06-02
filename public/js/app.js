@@ -85,23 +85,41 @@ function renderProducts() {
   const grid = $('#productGrid');
   const list = PRODUCTS.filter(p => currentFilter === 'all' || p.category === currentFilter);
   if (!list.length) { grid.innerHTML = '<div class="loading">Brak produktów.</div>'; return; }
-  grid.innerHTML = list.map(p => `
-    <article class="card" data-id="${p.id}">
+  grid.innerHTML = list.map((p, i) => {
+    const r = rating(p.id);
+    return `
+    <article class="card" data-id="${p.id}" style="animation-delay:${i * 50}ms">
       <div class="card-img">
         ${productSvg(p)}
-        <span class="card-tag">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>
+        <span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>
+        ${p.featured ? '<span class="badge hot">Bestseller</span>' : ''}
       </div>
       <div class="card-body">
         <div class="card-name">${p.name}</div>
+        <div class="card-rating">${stars(r.score)} <span>${r.score.toFixed(1)} (${r.count})</span></div>
         <div class="card-colors">
           ${p.colors.map(c => `<span class="swatch" style="background:${colorHex(c)}" title="${c}"></span>`).join('')}
         </div>
         <div class="card-foot">
           <span class="price">${money(p.price)}</span>
-          <button class="btn-add" data-quick="${p.id}">Dodaj</button>
+          <button class="btn-add" data-quick="${p.id}">Do koszyka</button>
         </div>
       </div>
-    </article>`).join('');
+    </article>`;
+  }).join('');
+}
+
+/* Pseudo-oceny (stabilne na podstawie id) — tylko do prezentacji */
+function rating(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  const score = 4.5 + (h % 5) / 10;           // 4.5 - 4.9
+  const count = 40 + (h % 260);               // 40 - 299
+  return { score, count };
+}
+function stars(score) {
+  const full = Math.round(score);
+  return '★★★★★'.slice(0, full) + '☆☆☆☆☆'.slice(0, 5 - full);
 }
 
 /* ====== Modal produktu ====== */
@@ -115,6 +133,7 @@ function openProduct(id) {
     <div class="pm-info">
       <span class="card-tag" style="position:static;display:inline-block;margin-bottom:10px">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>
       <h3>${p.name}</h3>
+      <div class="pm-rating">${stars(rating(p.id).score)} <span class="muted">${rating(p.id).score.toFixed(1)} · ${rating(p.id).count} opinii</span></div>
       <span class="price">${money(p.price)}</span>
       <p class="pm-desc">${p.description}</p>
       <div class="option-group">
@@ -262,7 +281,14 @@ async function submitOrder(e) {
 /* ====== Zdarzenia ====== */
 function setFilter(f) {
   currentFilter = f;
-  $('#shopTitle').textContent = f === 'all' ? 'Cała kolekcja' : (f === 'bluza' ? 'Bluzy' : 'Koszulki');
+  const titles = { all: 'Cała kolekcja', bluza: 'Bluzy', koszulka: 'Koszulki' };
+  const subs = {
+    all: 'Wszystkie bluzy i koszulki Vibe',
+    bluza: 'Ciepłe bluzy z kapturem — premium bawełna',
+    koszulka: 'Koszulki na co dzień — krój regular i oversize'
+  };
+  $('#shopTitle').textContent = titles[f];
+  const sub = $('#shopSub'); if (sub) sub.textContent = subs[f];
   $$('.chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
   $$('.nav-link').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
   renderProducts();
@@ -312,6 +338,35 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+/* ====== Hero visual ====== */
+function renderHero() {
+  const el = $('#heroVisual');
+  if (!el) return;
+  el.innerHTML = `<svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#00d2ff"/>
+      </linearGradient>
+    </defs>
+    <circle cx="250" cy="250" r="180" fill="url(#hg)" opacity="0.15"/>
+    <circle cx="250" cy="250" r="120" fill="url(#hg)" opacity="0.12"/>
+    <g transform="translate(250,250) scale(2.1)" fill="none" stroke="url(#hg)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M-40 -45 q40 -25 80 0 l38 22 -22 38 -16 -9 v85 h-118 v-85 l-16 9 -22 -38 z" transform="translate(-20,-20)"/>
+      <path d="M-22 -45 q20 28 40 0" transform="translate(-20,-20)"/>
+    </g>
+    <text x="250" y="470" text-anchor="middle" font-family="Sora, sans-serif" font-size="30" font-weight="800" fill="#ffffff" opacity="0.9">VIBE PREMIUM</text>
+  </svg>`;
+}
+
+/* ====== Newsletter ====== */
+const nf = $('#newsletterForm');
+if (nf) nf.addEventListener('submit', (e) => {
+  e.preventDefault();
+  e.target.reset();
+  toast('Zapisano! Sprawdź skrzynkę 📩');
+});
+
 /* ====== Start ====== */
+renderHero();
 renderCartCount();
 fetchProducts();
