@@ -1,0 +1,23 @@
+[Unit]
+Description=Vibe sklep (Node.js) - bluzy i koszulki
+After=network.target
+
+[Service]
+Type=simple
+# Katalog, do ktorego sklonowales repo:
+WorkingDirectory=/opt/vibe-sklep
+# Port sklepu (osobny adres na tym IP): http://85.215.197.199:8080
+Environment=PORT=8080
+Environment=HOST=0.0.0.0
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+User=www-data
+Group=www-data
+# Bezpieczenstwo
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

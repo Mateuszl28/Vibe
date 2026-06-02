@@ -1,0 +1,19 @@
+# Zaleznosci (sklep ich nie ma, ale na wszelki wypadek)
+node_modules/
+
+# Dane runtime - zamowienia NIE trafiaja do repo
+data/orders.json
+
+# Logi
+*.log
+npm-debug.log*
+
+# Srodowisko
+.env
+.env.local
+
+# System / edytory
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

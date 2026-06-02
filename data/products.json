@@ -1,0 +1,98 @@
+[
+  {
+    "id": "bluza-classic",
+    "name": "Bluza Vibe Classic",
+    "category": "bluza",
+    "price": 199.00,
+    "colors": ["czarny", "grafit", "kremowy"],
+    "sizes": ["S", "M", "L", "XL", "XXL"],
+    "color": "#1f2933",
+    "accent": "#7c5cff",
+    "description": "Klasyczna bluza z kapturem, gruby bawelniany dres 320g/m2. Wygodny krój regular, podwojny kaptur i kieszen kangurka.",
+    "featured": true
+  },
+  {
+    "id": "bluza-oversize",
+    "name": "Bluza Vibe Oversize",
+    "category": "bluza",
+    "price": 229.00,
+    "colors": ["bezowy", "czarny", "oliwkowy"],
+    "sizes": ["S", "M", "L", "XL"],
+    "color": "#c8b59a",
+    "accent": "#2b2b2b",
+    "description": "Luzny krój oversize, opuszczona linia ramion. Miekki, drapany w srodku material. Modny streetwearowy look.",
+    "featured": true
+  },
+  {
+    "id": "bluza-night",
+    "name": "Bluza z kapturem Night",
+    "category": "bluza",
+    "price": 249.00,
+    "colors": ["grafit", "czarny"],
+    "sizes": ["M", "L", "XL", "XXL"],
+    "color": "#23272e",
+    "accent": "#00d2ff",
+    "description": "Premium bluza z neonowym haftem. Ciezki material premium, sciagacze z domieszka elastanu.",
+    "featured": false
+  },
+  {
+    "id": "bluza-sport",
+    "name": "Bluza Sport",
+    "category": "bluza",
+    "price": 189.00,
+    "colors": ["szary", "granatowy"],
+    "sizes": ["S", "M", "L", "XL"],
+    "color": "#5b6470",
+    "accent": "#ff7a00",
+    "description": "Lekka bluza treningowa, oddychajacy material odprowadzajacy wilgoc. Idealna na trening i na co dzien.",
+    "featured": false
+  },
+  {
+    "id": "koszulka-logo",
+    "name": "Koszulka Vibe Logo",
+    "category": "koszulka",
+    "price": 89.00,
+    "colors": ["bialy", "czarny", "szary"],
+    "sizes": ["S", "M", "L", "XL", "XXL"],
+    "color": "#f4f4f5",
+    "accent": "#7c5cff",
+    "description": "Bawelniana koszulka 100% z nadrukiem logo Vibe. Gramatura 180g/m2, krój regular.",
+    "featured": true
+  },
+  {
+    "id": "koszulka-minimal",
+    "name": "Koszulka Minimal",
+    "category": "koszulka",
+    "price": 79.00,
+    "colors": ["czarny", "bialy"],
+    "sizes": ["S", "M", "L", "XL"],
+    "color": "#18181b",
+    "accent": "#ffffff",
+    "description": "Minimalistyczna koszulka basic bez nadruku. Najwyzszej jakosci bawelna czesana.",
+    "featured": false
+  },
+  {
+    "id": "koszulka-street",
+    "name": "Koszulka Street",
+    "category": "koszulka",
+    "price": 99.00,
+    "colors": ["oliwkowy", "czarny", "piaskowy"],
+    "sizes": ["S", "M", "L", "XL"],
+    "color": "#5c6b3f",
+    "accent": "#ffd000",
+    "description": "Streetwearowa koszulka z grafika na plecach. Lekko oversizowy krój, gruba bawelna.",
+    "featured": true
+  },
+  {
+    "id": "koszulka-oversize",
+    "name": "Koszulka Oversize Tee",
+    "category": "koszulka",
+    "price": 109.00,
+    "colors": ["kremowy", "czarny", "bezowy"],
+    "sizes": ["S", "M", "L", "XL", "XXL"],
+    "color": "#e8e0d0",
+    "accent": "#2b2b2b",
+    "description": "Koszulka oversize z grubej bawelny 220g/m2. Opadajace ramie, dluzszy tyl.",
+    "featured": false
+  }
+]
