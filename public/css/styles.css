@@ -15,6 +15,10 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Wymusza ukrycie elementow z atrybutem hidden (modale, szuflada koszyka).
+   Bez tego .modal-overlay/.drawer-overlay z display:grid nadpisuja [hidden]. */
+[hidden] { display: none !important; }
+
 body {
   font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
   background: var(--bg);
