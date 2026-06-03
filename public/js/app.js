@@ -342,7 +342,26 @@ function renderHero() {
 const nf = $('#newsletterForm');
 if (nf) nf.addEventListener('submit', (e) => { e.preventDefault(); e.target.reset(); toast('Zapisano! Sprawdź skrzynkę 📩'); });
 
+/* ====== Stan konta w naglowku ====== */
+async function initAccountHeader() {
+  const btn = $('#accountBtn');
+  if (!btn) return;
+  try {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    const label = $('#accountLabel');
+    if (data.user) {
+      if (label) label.textContent = (data.user.name || '').split(' ')[0] || 'Konto';
+      btn.href = data.user.role === 'admin' ? '/admin' : '/konto';
+    } else {
+      if (label) label.textContent = 'Zaloguj';
+      btn.href = '/logowanie';
+    }
+  } catch {}
+}
+
 /* ====== Start ====== */
 renderHero();
 renderCartCount();
+initAccountHeader();
 fetchProducts();

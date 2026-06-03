@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Logowanie / Rejestracja | Vibe</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css?v=6" />
+</head>
+<body data-page="auth">
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="/" class="logo">VIBE<span>.</span></a>
+      <a href="/#sklep" class="btn btn-ghost" style="margin-left:auto;padding:11px 22px">← Wróć do sklepu</a>
+    </div>
+  </header>
+
+  <main class="auth-wrap">
+    <div class="auth-card">
+      <h1>Witaj w Vibe</h1>
+      <p class="sub">Zaloguj się lub załóż konto, aby śledzić zamówienia.</p>
+
+      <div class="auth-tabs">
+        <button id="tabLogin" class="active" type="button">Logowanie</button>
+        <button id="tabRegister" type="button">Rejestracja</button>
+      </div>
+
+      <!-- Logowanie -->
+      <form id="loginForm" class="checkout-form">
+        <label>E-mail lub login<input name="login" required autocomplete="username" /></label>
+        <label>Hasło<input name="password" type="password" required autocomplete="current-password" /></label>
+        <p class="form-error" id="loginError" hidden></p>
+        <button type="submit" class="btn btn-primary btn-block">Zaloguj się</button>
+      </form>
+
+      <!-- Rejestracja -->
+      <form id="registerForm" class="checkout-form" hidden>
+        <label>Imię i nazwisko<input name="name" required minlength="2" autocomplete="name" /></label>
+        <label>E-mail<input name="email" type="email" required autocomplete="email" /></label>
+        <label>Hasło (min. 8 znaków)<input name="password" type="password" required minlength="8" autocomplete="new-password" /></label>
+        <p class="form-error" id="registerError" hidden></p>
+        <button type="submit" class="btn btn-primary btn-block">Załóż konto</button>
+      </form>
+
+      <p class="auth-foot" id="authFoot">Nie masz konta? <a href="#" id="switchToRegister">Zarejestruj się</a></p>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/js/account.js?v=6"></script>
+</body>
+</html>

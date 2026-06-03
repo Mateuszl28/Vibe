@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moje konto | Vibe</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css?v=6" />
+</head>
+<body data-page="konto">
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="/" class="logo">VIBE<span>.</span></a>
+      <nav class="main-nav">
+        <a href="/" class="nav-link">Sklep</a>
+        <a href="/#sklep" class="nav-link">Kolekcja</a>
+      </nav>
+      <a href="/#sklep" class="btn btn-ghost" style="margin-left:auto;padding:11px 20px">← Sklep</a>
+    </div>
+  </header>
+
+  <div class="container account-head">
+    <h1>Moje konto</h1>
+    <p id="accountHello">Ładowanie…</p>
+  </div>
+
+  <div class="container account-grid">
+    <aside class="account-side">
+      <a href="#" class="active">👤 Moje konto</a>
+      <a href="/#sklep">🛍️ Kontynuuj zakupy</a>
+      <button class="logout" id="logoutBtn">↩️ Wyloguj się</button>
+    </aside>
+
+    <div>
+      <div class="panel-card">
+        <h2>Dane konta</h2>
+        <div id="profile"></div>
+      </div>
+      <div class="panel-card">
+        <h2>Historia zamówień</h2>
+        <div id="orders"><p class="muted">Ładowanie zamówień…</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/js/account.js?v=6"></script>
+</body>
+</html>

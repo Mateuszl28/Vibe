@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel administratora | Vibe</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css?v=6" />
+</head>
+<body data-page="admin">
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="/" class="logo">VIBE<span>.</span> <span style="font-size:.7rem;color:var(--muted);font-weight:600">ADMIN</span></a>
+      <nav class="main-nav">
+        <a href="/" class="nav-link">Sklep</a>
+      </nav>
+      <button class="btn btn-ghost" id="logoutBtn" style="margin-left:auto;padding:11px 20px">Wyloguj</button>
+    </div>
+  </header>
+
+  <div class="container account-head">
+    <h1>Panel administratora</h1>
+    <p id="adminHello">Ładowanie…</p>
+  </div>
+
+  <div class="container" style="padding-bottom:70px">
+    <div class="admin-stats" id="adminStats"></div>
+
+    <div class="admin-tabs">
+      <button id="tabOrders" class="active" type="button">Zamówienia</button>
+      <button id="tabUsers" type="button">Klienci</button>
+    </div>
+
+    <div class="panel-card" id="ordersPanel">
+      <h2>Zamówienia</h2>
+      <div id="adminOrders"><p class="muted">Ładowanie…</p></div>
+    </div>
+
+    <div class="panel-card" id="usersPanel" hidden>
+      <h2>Klienci</h2>
+      <div id="adminUsers"><p class="muted">Ładowanie…</p></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/js/account.js?v=6"></script>
+</body>
+</html>

@@ -335,6 +335,81 @@ a { color: inherit; text-decoration: none; }
 .socials a:hover { border-color: var(--text); color: var(--text); }
 .copyright { color: var(--muted); font-size: 0.82rem; margin-top: 34px; text-align: center; border-top: 1px solid var(--line); padding-top: 22px; }
 
+/* ===== Konto: przycisk w naglowku ===== */
+.account-btn {
+  display: inline-flex; align-items: center; gap: 8px; background: var(--card);
+  border: 1px solid var(--line-strong); color: var(--text); height: 44px; padding: 0 14px;
+  border-radius: 12px; font-weight: 600; font-size: 0.9rem; transition: all .2s; cursor: pointer;
+}
+.account-btn:hover { border-color: var(--text); }
+.account-btn svg { width: 18px; height: 18px; }
+
+/* ===== Strony logowania / rejestracji ===== */
+.auth-wrap { min-height: 70vh; display: grid; place-items: center; padding: 50px 20px; }
+.auth-card {
+  width: min(440px, 100%); background: #fff; border: 1px solid var(--line);
+  border-radius: var(--radius-lg); padding: 34px; box-shadow: var(--shadow);
+}
+.auth-card h1 { font-size: 1.7rem; text-align: center; }
+.auth-card .sub { text-align: center; color: var(--muted); margin: 8px 0 22px; font-size: 0.92rem; }
+.auth-tabs { display: flex; gap: 6px; background: var(--card-2); border-radius: 12px; padding: 5px; margin-bottom: 22px; }
+.auth-tabs button {
+  flex: 1; padding: 10px; border: none; background: none; border-radius: 9px; cursor: pointer;
+  font-family: inherit; font-weight: 600; color: var(--muted); transition: all .2s;
+}
+.auth-tabs button.active { background: #fff; color: var(--text); box-shadow: var(--shadow-sm); }
+.auth-foot { text-align: center; margin-top: 18px; font-size: 0.88rem; color: var(--muted); }
+.auth-foot a { color: var(--accent); font-weight: 600; }
+
+/* ===== Panel konta / admina ===== */
+.account-head { padding: 40px 0 10px; }
+.account-head h1 { font-size: 2rem; }
+.account-head p { color: var(--muted); margin-top: 4px; }
+.account-grid { display: grid; grid-template-columns: 260px 1fr; gap: 30px; padding: 24px 0 70px; align-items: start; }
+.account-side { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; position: sticky; top: 86px; }
+.account-side a, .account-side button {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 12px 14px;
+  border-radius: 10px; border: none; background: none; color: var(--text); font-family: inherit;
+  font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: background .2s;
+}
+.account-side a:hover, .account-side button:hover { background: var(--card-2); }
+.account-side a.active { background: var(--dark); color: #fff; }
+.account-side .logout { color: var(--danger); }
+.panel-card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; margin-bottom: 18px; }
+.panel-card h2 { font-size: 1.25rem; margin-bottom: 14px; }
+.profile-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 0.95rem; }
+.profile-row:last-child { border-bottom: none; }
+.profile-row span:first-child { color: var(--muted); }
+
+.order-card { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
+.order-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.order-top .oid { font-family: 'Sora', sans-serif; font-weight: 700; }
+.order-items { color: #45474e; font-size: 0.9rem; }
+.order-items div { padding: 3px 0; }
+.order-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.status {
+  display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.76rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.status.nowe { background: #eef2ff; color: #4338ca; }
+.status.w-realizacji { background: #fff7ed; color: #c2410c; }
+.status.wyslane { background: #ecfeff; color: #0e7490; }
+.status.zrealizowane { background: #ecfdf5; color: #047857; }
+.status.anulowane { background: #fef2f2; color: #b91c1c; }
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.admin-table th, .admin-table td { padding: 11px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+.admin-table thead th { font-family: 'Sora', sans-serif; color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: .4px; }
+.admin-table select { padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 8px; font-family: inherit; background: #fff; cursor: pointer; }
+.admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 14px; margin-bottom: 18px; }
+.stat-card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+.stat-card .num { font-size: 1.8rem; font-weight: 800; font-family: 'Sora', sans-serif; }
+.stat-card .lbl { color: var(--muted); font-size: 0.85rem; }
+.admin-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+.admin-tabs button { padding: 9px 18px; border: 1px solid var(--line-strong); background: #fff; border-radius: 999px; cursor: pointer; font-family: inherit; font-weight: 600; color: var(--muted); }
+.admin-tabs button.active { background: var(--dark); color: #fff; border-color: var(--dark); }
+@media (max-width: 760px) { .account-grid { grid-template-columns: 1fr; } .account-side { position: static; display: flex; overflow-x: auto; } .admin-table { display: block; overflow-x: auto; } }
+
 /* ===== Toast ===== */
 .toast {
   position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);

@@ -1,9 +1,14 @@
 # Zaleznosci (sklep ich nie ma, ale na wszelki wypadek)
 node_modules/
 
-# Dane runtime - zamowienia i wiadomosci NIE trafiaja do repo
+# Dane runtime - NIE trafiaja do repo (zawieraja dane uzytkownikow!)
 data/orders.json
 data/messages.json
+# Baza danych SQLite (uzytkownicy, hasla, zamowienia, sesje) - NIGDY do repo
+data/vibe.db
+data/vibe.db-shm
+data/vibe.db-wal
+data/vibe.db-journal
 
 # Logi
 *.log

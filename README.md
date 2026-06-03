@@ -52,6 +52,25 @@ vibe-sklep/
 - Katalog renderowany po stronie serwera (linki do produktów widoczne dla robotów bez JS).
 - `/robots.txt` i `/sitemap.xml` (strona główna + podstrony + wszystkie produkty).
 
+## Konta, panele i baza danych
+
+- **Baza:** SQLite (wbudowany `node:sqlite`) — plik `data/vibe.db`. Wymaga **Node ≥ 22**
+  uruchomionego z flagą `--experimental-sqlite` (skrypt instalacyjny ustawia to sam).
+- **Rejestracja/logowanie:** klienci rejestrują się e-mailem (`/rejestracja`, `/logowanie`).
+- **Panel klienta** (`/konto`): dane konta + historia zamówień (zamówienia wiążą się z kontem).
+- **Panel admina** (`/admin`): lista zamówień ze zmianą statusu, lista klientów, statystyki.
+  Admin loguje się **loginem `admin`** + hasłem z konfiguracji (`ADMIN_PASSWORD`).
+
+### Bezpieczeństwo bazy
+
+- Hasła hashowane `scrypt` z losową solą (wbudowany `crypto`), porównanie w czasie stałym.
+- Wszystkie zapytania **parametryzowane** (prepared statements) — brak SQL injection.
+- Sesje: token kryptograficznie losowy, cookie `HttpOnly` + `SameSite=Strict`.
+- Plik `vibe.db` poza `public/` (niedostępny przez WWW), prawa `600`, w `.gitignore`.
+- Endpointy admina chronione kontrolą roli po stronie serwera; API nie zwraca hashy haseł.
+- Ochrona logowania przed brute-force (limit prób na IP), nagłówki bezpieczeństwa.
+- **Zmień domyślne hasło admina** ustawiając `ADMIN_PASSWORD`. Przy HTTPS dodaj `Secure` do cookie.
+
 ---
 
 ## Uruchomienie lokalne (Windows / dowolny system)
@@ -112,6 +131,10 @@ cd /opt/vibe-sklep
 git pull
 systemctl restart vibe-sklep
 ```
+
+> **Uwaga:** jeśli aktualizacja zmienia wersję Node lub konfigurację usługi
+> (np. wprowadzenie bazy SQLite — Node 22 + flaga), uruchom ponownie instalator
+> zamiast samego restartu: `ADMIN_PASSWORD='twoje-haslo' bash deploy/setup.sh`
 
 ---
 

@@ -9,6 +9,8 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const db = require('./lib/db');
+const auth = require('./lib/auth');
 
 const PORT = parseInt(process.env.PORT, 10) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -45,6 +47,63 @@ let PRODUCTS = loadProducts();
 
 // Bazowy adres witryny (do SEO: canonical, OG, sitemap). Ustaw przez SITE_URL.
 const SITE_URL = (process.env.SITE_URL || `http://85.215.197.199:${PORT}`).replace(/\/$/, '');
+
+// ---- Konto administratora (login + haslo z konfiguracji) ----
+const ADMIN_USER = process.env.ADMIN_USER || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+if (!db.userExists(ADMIN_USER)) {
+  db.createUser({ username: ADMIN_USER, name: 'Administrator', password_hash: auth.hashPassword(ADMIN_PASSWORD), role: 'admin' });
+  console.log(`[ADMIN] Utworzono konto administratora (login: ${ADMIN_USER}).`);
+} else {
+  // Synchronizuj haslo admina z konfiguracja (zmiana ADMIN_PASSWORD + restart = nowe haslo)
+  db.setUserPassword(ADMIN_USER, auth.hashPassword(ADMIN_PASSWORD));
+}
+if (ADMIN_PASSWORD === 'admin123') {
+  console.warn('[BEZPIECZENSTWO] Admin uzywa DOMYSLNEGO hasla "admin123". Ustaw ADMIN_PASSWORD w konfiguracji!');
+}
+
+// ---- Sesje (cookie HttpOnly + SameSite) ----
+const SESSION_DAYS = 30;
+function currentUser(req) {
+  const token = auth.parseCookies(req.headers.cookie).vibe_session;
+  return db.getSessionUser(token);
+}
+function startSession(res, userId) {
+  const token = auth.newToken();
+  const expires = Date.now() + SESSION_DAYS * 24 * 3600 * 1000;
+  db.createSession(token, userId, expires);
+  // Uwaga: dodaj " Secure;" gdy uruchomisz HTTPS.
+  res.setHeader('Set-Cookie', `vibe_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_DAYS * 24 * 3600}`);
+}
+function endSession(req, res) {
+  const token = auth.parseCookies(req.headers.cookie).vibe_session;
+  if (token) db.deleteSession(token);
+  res.setHeader('Set-Cookie', 'vibe_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+}
+function setSecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-XSS-Protection', '0');
+}
+
+// ---- Ochrona przed brute-force logowania (limit prob na IP) ----
+const loginAttempts = new Map();
+function tooManyAttempts(ip) {
+  const now = Date.now();
+  const rec = loginAttempts.get(ip);
+  if (!rec) return false;
+  if (now - rec.first > 15 * 60 * 1000) { loginAttempts.delete(ip); return false; } // okno 15 min
+  return rec.count >= 8;
+}
+function noteFailedLogin(ip) {
+  const now = Date.now();
+  const rec = loginAttempts.get(ip);
+  if (!rec || now - rec.first > 15 * 60 * 1000) loginAttempts.set(ip, { count: 1, first: now });
+  else rec.count++;
+}
+function clearAttempts(ip) { loginAttempts.delete(ip); }
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 // ---- pomocnicze SEO/SVG ----
 function esc(s) {
@@ -195,6 +254,13 @@ const PAGES = {
   '/tabela-rozmiarow': 'tabela-rozmiarow.html',
   '/kontakt': 'kontakt.html'
 };
+// Strony aplikacji (konta) — NIE trafiaja do sitemap, maja noindex w HTML.
+const APP_PAGES = {
+  '/logowanie': 'auth.html',
+  '/rejestracja': 'auth.html',
+  '/konto': 'konto.html',
+  '/admin': 'admin.html'
+};
 
 // Pseudo-oceny (stabilne na podstawie id) — identyczne jak na frontendzie
 function ratingFor(id) {
@@ -342,22 +408,7 @@ function serveStatic(req, res, urlPath) {
   });
 }
 
-// ---- zamowienia ----
-function readOrders() {
-  try {
-    return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8'));
-  } catch {
-    return [];
-  }
-}
-function saveOrder(order) {
-  const orders = readOrders();
-  orders.push(order);
-  fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
-}
-
-let orderCounterSeed = readOrders().length;
-
+// ---- zamowienia (baza danych) ----
 function validateOrder(payload) {
   const errors = [];
   const c = payload && payload.customer ? payload.customer : {};
@@ -368,7 +419,7 @@ function validateOrder(payload) {
   return errors;
 }
 
-function handleCreateOrder(req, res, raw) {
+function handleCreateOrder(req, res, raw, user) {
   let payload;
   try {
     payload = JSON.parse(raw || '{}');
@@ -392,9 +443,9 @@ function handleCreateOrder(req, res, raw) {
     lineItems.push({ id: product.id, name: product.name, price: product.price, qty, size, color, lineTotal });
   }
 
-  const id = 'VIBE-' + String(1000 + (++orderCounterSeed));
   const order = {
-    id,
+    id: 'VIBE-' + String(1001 + db.countOrders()),
+    user_id: user ? user.id : null,
     createdAt: new Date().toISOString(),
     customer: {
       name: String(payload.customer.name).trim(),
@@ -407,13 +458,48 @@ function handleCreateOrder(req, res, raw) {
     status: 'nowe'
   };
   try {
-    saveOrder(order);
+    db.createOrder(order);
   } catch (err) {
     console.error('Blad zapisu zamowienia:', err.message);
     return sendJson(res, 500, { error: 'Nie udalo sie zapisac zamowienia.' });
   }
-  console.log(`[ZAMOWIENIE] ${id} - ${order.customer.email} - ${order.total} zl`);
-  return sendJson(res, 201, { ok: true, orderId: id, total: order.total });
+  console.log(`[ZAMOWIENIE] ${order.id} - ${order.customer.email} - ${order.total} zl${user ? ' (user ' + user.id + ')' : ''}`);
+  return sendJson(res, 201, { ok: true, orderId: order.id, total: order.total });
+}
+
+// ---- Uwierzytelnianie ----
+function handleRegister(req, res, raw) {
+  let p; try { p = JSON.parse(raw || '{}'); } catch { return sendJson(res, 400, { error: 'Niepoprawny JSON.' }); }
+  const name = String(p.name || '').trim();
+  const email = String(p.email || '').trim().toLowerCase();
+  const password = String(p.password || '');
+  if (name.length < 2) return sendJson(res, 400, { error: 'Podaj imie i nazwisko (min. 2 znaki).' });
+  if (!EMAIL_RE.test(email)) return sendJson(res, 400, { error: 'Podaj poprawny adres e-mail.' });
+  if (password.length < 8) return sendJson(res, 400, { error: 'Haslo musi miec min. 8 znakow.' });
+  if (db.userExists(email)) return sendJson(res, 409, { error: 'Konto z tym e-mailem juz istnieje.' });
+  let user;
+  try {
+    user = db.createUser({ email, name, password_hash: auth.hashPassword(password), role: 'customer' });
+  } catch (err) {
+    return sendJson(res, 409, { error: 'Nie udalo sie utworzyc konta (e-mail zajety).' });
+  }
+  startSession(res, user.id);
+  return sendJson(res, 201, { ok: true, user });
+}
+
+function handleLogin(req, res, raw, ip) {
+  if (tooManyAttempts(ip)) return sendJson(res, 429, { error: 'Za duzo prob logowania. Sprobuj za 15 minut.' });
+  let p; try { p = JSON.parse(raw || '{}'); } catch { return sendJson(res, 400, { error: 'Niepoprawny JSON.' }); }
+  const login = String(p.login || '').trim().toLowerCase();
+  const password = String(p.password || '');
+  const row = db.getUserForAuth(login);
+  if (!row || !auth.verifyPassword(password, row.password_hash)) {
+    noteFailedLogin(ip);
+    return sendJson(res, 401, { error: 'Niepoprawny login lub haslo.' });
+  }
+  clearAttempts(ip);
+  startSession(res, row.id);
+  return sendJson(res, 200, { ok: true, user: db.getUserById(row.id) });
 }
 
 // ---- wiadomosci z formularza kontaktowego ----
@@ -442,6 +528,8 @@ function handleContact(res, raw) {
 
 // ---- router ----
 const server = http.createServer(async (req, res) => {
+  setSecurityHeaders(res);
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   const url = req.url || '/';
   const method = req.method || 'GET';
   const pathOnly = url.split('?')[0];
@@ -468,6 +556,18 @@ const server = http.createServer(async (req, res) => {
     } catch {
       res.writeHead(404); return res.end('404');
     }
+  }
+
+  // Strony kont (logowanie/rejestracja/konto/admin) z kontrola dostepu po stronie serwera
+  if (method === 'GET' && APP_PAGES[pathOnly]) {
+    const u = currentUser(req);
+    if (pathOnly === '/konto' && !u) { res.writeHead(302, { Location: '/logowanie?next=/konto' }); return res.end(); }
+    if (pathOnly === '/admin' && (!u || u.role !== 'admin')) { res.writeHead(302, { Location: '/logowanie?next=/admin' }); return res.end(); }
+    if ((pathOnly === '/logowanie' || pathOnly === '/rejestracja') && u) {
+      res.writeHead(302, { Location: u.role === 'admin' ? '/admin' : '/konto' }); return res.end();
+    }
+    try { return sendHtml(res, renderTemplate(path.join(PAGES_DIR, APP_PAGES[pathOnly]))); }
+    catch { res.writeHead(404); return res.end('404'); }
   }
 
   // Obrazek Open Graph produktu: /img/produkt/<id>.svg
@@ -509,7 +609,7 @@ const server = http.createServer(async (req, res) => {
     if (method === 'POST' && url === '/api/orders') {
       try {
         const raw = await readBody(req);
-        return handleCreateOrder(req, res, raw);
+        return handleCreateOrder(req, res, raw, currentUser(req));
       } catch (err) {
         return sendJson(res, 400, { error: err.message });
       }
@@ -522,6 +622,54 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { error: err.message });
       }
     }
+
+    // --- Uwierzytelnianie ---
+    if (method === 'POST' && url === '/api/auth/register') {
+      try { return handleRegister(req, res, await readBody(req)); }
+      catch (err) { return sendJson(res, 400, { error: err.message }); }
+    }
+    if (method === 'POST' && url === '/api/auth/login') {
+      try { return handleLogin(req, res, await readBody(req), ip); }
+      catch (err) { return sendJson(res, 400, { error: err.message }); }
+    }
+    if (method === 'POST' && url === '/api/auth/logout') {
+      endSession(req, res);
+      return sendJson(res, 200, { ok: true });
+    }
+    if (method === 'GET' && url === '/api/auth/me') {
+      const u = currentUser(req);
+      return sendJson(res, 200, { user: u || null });
+    }
+
+    // --- Konto klienta ---
+    if (method === 'GET' && url === '/api/orders/mine') {
+      const u = currentUser(req);
+      if (!u) return sendJson(res, 401, { error: 'Wymagane logowanie.' });
+      return sendJson(res, 200, { orders: db.getOrdersByUser(u.id) });
+    }
+
+    // --- Panel admina (twarda kontrola roli) ---
+    if (url.startsWith('/api/admin/')) {
+      const u = currentUser(req);
+      if (!u || u.role !== 'admin') return sendJson(res, 403, { error: 'Brak uprawnien.' });
+      if (method === 'GET' && url === '/api/admin/orders') {
+        return sendJson(res, 200, { orders: db.getAllOrders() });
+      }
+      if (method === 'GET' && url === '/api/admin/users') {
+        return sendJson(res, 200, { users: db.getAllUsers() });
+      }
+      if (method === 'POST' && url === '/api/admin/order-status') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const allowed = ['nowe', 'w realizacji', 'wyslane', 'zrealizowane', 'anulowane'];
+          if (!p.id || !allowed.includes(p.status)) return sendJson(res, 400, { error: 'Niepoprawne dane.' });
+          const ok = db.updateOrderStatus(String(p.id), p.status);
+          return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Nie znaleziono zamowienia.' });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      return sendJson(res, 404, { error: 'Nieznany endpoint admina.' });
+    }
+
     return sendJson(res, 404, { error: 'Nieznany endpoint API.' });
   }
 
@@ -532,7 +680,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`\n  Vibe sklep dziala -> http://${HOST}:${PORT}`);
   console.log(`  Produktow w katalogu: ${PRODUCTS.length}`);
-  console.log(`  Zamowienia zapisywane do: ${ORDERS_FILE}\n`);
+  console.log(`  Baza danych: data/vibe.db (SQLite) | login admina: ${ADMIN_USER}\n`);
 });
 
 // Graceful shutdown

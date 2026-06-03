@@ -19,13 +19,17 @@ if [[ $EUID -ne 0 ]]; then
   echo "!! Uruchom jako root (sudo bash deploy/setup.sh)"; exit 1
 fi
 
-# --- 1. Node.js ---
-if ! command -v node >/dev/null 2>&1; then
-  echo "==> Instaluje Node.js 20 (NodeSource)..."
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+# --- 1. Node.js (wymagany >= 22 dla wbudowanego node:sqlite) ---
+NODE_MAJOR=0
+if command -v node >/dev/null 2>&1; then
+  NODE_MAJOR="$(node -v | sed 's/v\([0-9]*\).*/\1/')"
+fi
+if [ "$NODE_MAJOR" -lt 22 ]; then
+  echo "==> Instaluje Node.js 22 LTS (potrzebny do bazy SQLite)... obecnie: ${NODE_MAJOR:-brak}"
+  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 else
-  echo "==> Node.js juz jest: $(node -v)"
+  echo "==> Node.js OK: $(node -v)"
 fi
 NODE_BIN="$(command -v node)"
 
@@ -47,7 +51,11 @@ Environment=PORT=${PORT}
 Environment=HOST=0.0.0.0
 # Adres bazowy do SEO (canonical, Open Graph, sitemap). Zmien na domene gdy bedzie.
 Environment=SITE_URL=http://85.215.197.199:${PORT}
-ExecStart=${NODE_BIN} server.js
+# Konto administratora (login: admin). ZMIEN HASLO ponizej na wlasne!
+Environment=ADMIN_USER=admin
+Environment=ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+# Flaga --experimental-sqlite wymagana dla wbudowanej bazy SQLite (Node 22)
+ExecStart=${NODE_BIN} --experimental-sqlite server.js
 Restart=always
 RestartSec=3
 User=www-data
