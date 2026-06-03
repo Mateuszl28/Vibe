@@ -10,15 +10,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/styles.css?v=9" />
+  <link rel="stylesheet" href="/css/styles.css?v=10" />
 </head>
 <body data-page="admin">
   <header class="site-header">
     <div class="container header-inner">
       <a href="/" class="logo">VIBE<span>.</span> <span style="font-size:.7rem;color:var(--muted);font-weight:600">ADMIN</span></a>
-      <nav class="main-nav">
-        <a href="/" class="nav-link">Sklep</a>
-      </nav>
+      <nav class="main-nav"><a href="/" class="nav-link">Sklep</a></nav>
       <button class="btn btn-ghost" id="logoutBtn" style="margin-left:auto;padding:11px 20px">Wyloguj</button>
     </div>
   </header>
@@ -28,56 +26,113 @@
     <p id="adminHello">Ładowanie…</p>
   </div>
 
-  <div class="container" style="padding-bottom:70px">
-    <div class="admin-stats" id="adminStats"></div>
+  <div class="container account-grid">
+    <aside class="account-side" id="adminNav">
+      <a href="#" data-sec="dash" class="active">📊 Pulpit</a>
+      <a href="#" data-sec="orders">📦 Zamówienia</a>
+      <a href="#" data-sec="products">🏷️ Produkty</a>
+      <a href="#" data-sec="customers">👥 Klienci</a>
+      <a href="#" data-sec="messages">✉️ Wiadomości</a>
+    </aside>
 
-    <div class="admin-tabs">
-      <button id="tabOrders" class="active" type="button">Zamówienia</button>
-      <button id="tabProducts" type="button">Produkty</button>
-      <button id="tabUsers" type="button">Klienci</button>
-    </div>
-
-    <div class="panel-card" id="ordersPanel">
-      <h2>Zamówienia</h2>
-      <div id="adminOrders"><p class="muted">Ładowanie…</p></div>
-    </div>
-
-    <div class="panel-card" id="productsPanel" hidden>
-      <h2 id="prodFormTitle">Dodaj produkt</h2>
-      <form id="productForm" class="checkout-form" style="margin-bottom:24px">
-        <input type="hidden" name="editId" />
-        <div class="prod-grid">
-          <label>Nazwa<input name="name" required minlength="2" /></label>
-          <label>Kategoria
-            <select name="category"><option value="bluza">Bluza</option><option value="koszulka">Koszulka</option></select>
-          </label>
-          <label>Cena (zł)<input name="price" type="number" step="0.01" min="0" required /></label>
-          <label>Stan magazynowy (szt.)<input name="stock" type="number" min="0" step="1" value="25" required /></label>
-          <label>Bestseller
-            <select name="featured"><option value="0">Nie</option><option value="1">Tak</option></select>
-          </label>
-          <label>Kolory (po przecinku)<input name="colors" placeholder="czarny, bialy, szary" required /></label>
-          <label>Rozmiary (po przecinku)<input name="sizes" placeholder="S, M, L, XL" required /></label>
-          <label>Kolor tła (hex)<input name="color" value="#1f2933" /></label>
-          <label>Kolor grafiki (hex)<input name="accent" value="#7c5cff" /></label>
+    <div>
+      <!-- PULPIT -->
+      <section data-panel="dash">
+        <div class="admin-stats" id="dashStats"></div>
+        <div class="panel-card">
+          <h2>Sprzedaż — ostatnie 7 dni</h2>
+          <div id="dashChart" class="dash-chart"></div>
         </div>
-        <label>Opis<textarea name="description" rows="2" required minlength="3"></textarea></label>
-        <p class="form-error" id="prodError" hidden></p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button type="submit" class="btn btn-primary" id="prodSubmit">Dodaj produkt</button>
-          <button type="button" class="btn btn-ghost" id="prodCancel" hidden>Anuluj edycję</button>
+        <div class="dash-2col">
+          <div class="panel-card">
+            <h2>Ostatnie zamówienia</h2>
+            <div id="dashRecent"><p class="muted">Ładowanie…</p></div>
+          </div>
+          <div class="panel-card">
+            <h2>Niskie stany (≤ 5)</h2>
+            <div id="dashLowStock"><p class="muted">Ładowanie…</p></div>
+          </div>
         </div>
-      </form>
-      <div id="adminProducts"><p class="muted">Ładowanie…</p></div>
-    </div>
+      </section>
 
-    <div class="panel-card" id="usersPanel" hidden>
-      <h2>Klienci</h2>
-      <div id="adminUsers"><p class="muted">Ładowanie…</p></div>
+      <!-- ZAMÓWIENIA -->
+      <section data-panel="orders" hidden>
+        <div class="panel-card">
+          <div class="panel-head">
+            <h2>Zamówienia</h2>
+            <div class="panel-tools">
+              <input type="search" id="orderSearch" class="mini-input" placeholder="Szukaj (nr, e-mail, nazwisko)…" />
+              <select id="orderStatusFilter" class="mini-input">
+                <option value="">Wszystkie statusy</option>
+                <option value="nowe">Nowe</option>
+                <option value="w realizacji">W realizacji</option>
+                <option value="wyslane">Wysłane</option>
+                <option value="zrealizowane">Zrealizowane</option>
+                <option value="anulowane">Anulowane</option>
+              </select>
+            </div>
+          </div>
+          <div id="adminOrders"><p class="muted">Ładowanie…</p></div>
+        </div>
+      </section>
+
+      <!-- PRODUKTY -->
+      <section data-panel="products" hidden>
+        <div class="panel-card">
+          <h2 id="prodFormTitle">Dodaj produkt</h2>
+          <form id="productForm" class="checkout-form" style="margin-bottom:8px">
+            <input type="hidden" name="editId" />
+            <div class="prod-grid">
+              <label>Nazwa<input name="name" required minlength="2" /></label>
+              <label>Kategoria
+                <select name="category"><option value="bluza">Bluza</option><option value="koszulka">Koszulka</option></select>
+              </label>
+              <label>Cena (zł)<input name="price" type="number" step="0.01" min="0" required /></label>
+              <label>Stan magazynowy (szt.)<input name="stock" type="number" min="0" step="1" value="25" required /></label>
+              <label>Kolory (po przecinku)<input name="colors" placeholder="czarny, bialy, szary" required /></label>
+              <label>Rozmiary (po przecinku)<input name="sizes" placeholder="S, M, L, XL" required /></label>
+              <label>Bestseller
+                <select name="featured"><option value="0">Nie</option><option value="1">Tak</option></select>
+              </label>
+              <label>Kolor tła (hex)<input name="color" value="#1f2933" /></label>
+              <label>Kolor grafiki (hex)<input name="accent" value="#7c5cff" /></label>
+            </div>
+            <label>Opis<textarea name="description" rows="2" required minlength="3"></textarea></label>
+            <p class="form-error" id="prodError" hidden></p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button type="submit" class="btn btn-primary" id="prodSubmit">Dodaj produkt</button>
+              <button type="button" class="btn btn-ghost" id="prodCancel" hidden>Anuluj edycję</button>
+            </div>
+          </form>
+        </div>
+        <div class="panel-card">
+          <h2>Lista produktów</h2>
+          <div id="adminProducts"><p class="muted">Ładowanie…</p></div>
+        </div>
+      </section>
+
+      <!-- KLIENCI -->
+      <section data-panel="customers" hidden>
+        <div class="panel-card">
+          <div class="panel-head">
+            <h2>Klienci</h2>
+            <div class="panel-tools"><input type="search" id="customerSearch" class="mini-input" placeholder="Szukaj klienta…" /></div>
+          </div>
+          <div id="adminCustomers"><p class="muted">Ładowanie…</p></div>
+        </div>
+      </section>
+
+      <!-- WIADOMOŚCI -->
+      <section data-panel="messages" hidden>
+        <div class="panel-card">
+          <h2>Wiadomości z formularza kontaktowego</h2>
+          <div id="adminMessages"><p class="muted">Ładowanie…</p></div>
+        </div>
+      </section>
     </div>
   </div>
 
   <div class="toast" id="toast" hidden></div>
-  <script src="/js/account.js?v=9"></script>
+  <script src="/js/account.js?v=10"></script>
 </body>
 </html>

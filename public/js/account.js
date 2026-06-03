@@ -127,46 +127,71 @@ async function initAdmin() {
   $('#adminHello').textContent = `Zalogowano jako ${me.data.user.name} (${me.data.user.username || me.data.user.email}).`;
   $('#logoutBtn').addEventListener('click', doLogout);
 
-  const tabOrders = $('#tabOrders'), tabProducts = $('#tabProducts'), tabUsers = $('#tabUsers');
-  const tabs = [
-    { btn: tabOrders, panel: '#ordersPanel' },
-    { btn: tabProducts, panel: '#productsPanel' },
-    { btn: tabUsers, panel: '#usersPanel' }
-  ];
-  function showTab(active) {
-    tabs.forEach((t) => { t.btn.classList.toggle('active', t.btn === active.btn); $(t.panel).hidden = t !== active; });
+  // ----- Nawigacja sekcji (boczne menu) -----
+  const navLinks = $$('#adminNav a');
+  function showSection(sec) {
+    navLinks.forEach((a) => a.classList.toggle('active', a.dataset.sec === sec));
+    $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== sec; });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-  tabs.forEach((t) => t.btn.addEventListener('click', () => showTab(t)));
+  navLinks.forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); showSection(a.dataset.sec); }));
 
-  const ord = await api('/api/admin/orders');
-  const orders = (ord.data.orders) || [];
-  const usr = await api('/api/admin/users');
-  const users = (usr.data.users) || [];
+  // ----- Dane -----
+  const [ord, usr, msg] = await Promise.all([
+    api('/api/admin/orders'), api('/api/admin/users'), api('/api/admin/messages')
+  ]);
+  let orders = ord.data.orders || [];
+  const users = usr.data.users || [];
+  const messages = msg.data.messages || [];
+  let products = [];
 
-  const revenue = orders.filter((o) => o.status !== 'anulowane').reduce((s, o) => s + o.total, 0);
-  const customers = users.filter((u) => u.role === 'customer').length;
-  $('#adminStats').innerHTML = `
-    <div class="stat-card"><div class="num">${orders.length}</div><div class="lbl">Zamówień</div></div>
-    <div class="stat-card"><div class="num">${money(revenue)}</div><div class="lbl">Obrót (bez anulowanych)</div></div>
-    <div class="stat-card"><div class="num">${customers}</div><div class="lbl">Klientów</div></div>
-    <div class="stat-card"><div class="num">${orders.filter((o) => o.status === 'nowe').length}</div><div class="lbl">Nowe do obsługi</div></div>`;
+  // ----- PULPIT -----
+  function renderDash() {
+    const revenue = orders.filter((o) => o.status !== 'anulowane').reduce((s, o) => s + o.total, 0);
+    const newCount = orders.filter((o) => o.status === 'nowe').length;
+    const customers = users.filter((u) => u.role === 'customer').length;
+    $('#dashStats').innerHTML = `
+      <div class="stat-card"><div class="num">${money(revenue)}</div><div class="lbl">Obrót (bez anulowanych)</div></div>
+      <div class="stat-card"><div class="num">${orders.length}</div><div class="lbl">Zamówienia</div></div>
+      <div class="stat-card"><div class="num">${newCount}</div><div class="lbl">Nowe do obsługi</div></div>
+      <div class="stat-card"><div class="num">${customers}</div><div class="lbl">Klienci</div></div>`;
 
-  $('#adminOrders').innerHTML = orders.length
-    ? orders.map((o) => orderCard(o, true)).join('')
-    : '<p class="muted">Brak zamówień.</p>';
+    const now = new Date();
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now); d.setDate(now.getDate() - i);
+      days.push({ key: d.toLocaleDateString('pl-PL'), label: d.toLocaleDateString('pl-PL', { weekday: 'short' }), sum: 0 });
+    }
+    orders.forEach((o) => {
+      const k = new Date(o.createdAt).toLocaleDateString('pl-PL');
+      const day = days.find((x) => x.key === k);
+      if (day && o.status !== 'anulowane') day.sum += o.total;
+    });
+    const max = Math.max(1, ...days.map((d) => d.sum));
+    $('#dashChart').innerHTML = days.map((d) =>
+      `<div class="bar-col"><div class="bar" style="height:${Math.max(2, Math.round(d.sum / max * 100))}%" title="${money(d.sum)}"></div><span>${d.label}</span></div>`).join('');
 
-  $('#adminUsers').innerHTML = users.length ? `
-    <table class="admin-table">
-      <thead><tr><th>ID</th><th>Imię</th><th>E-mail / login</th><th>Rola</th><th>Od</th></tr></thead>
-      <tbody>${users.map((u) => `<tr>
-        <td>${u.id}</td><td>${esc(u.name)}</td>
-        <td>${esc(u.email || u.username)}</td>
-        <td>${esc(u.role)}</td>
-        <td>${esc(new Date(u.created_at).toLocaleDateString('pl-PL'))}</td>
-      </tr>`).join('')}</tbody>
-    </table>` : '<p class="muted">Brak użytkowników.</p>';
+    $('#dashRecent').innerHTML = orders.length
+      ? orders.slice(0, 5).map((o) => `<div class="mini-row"><span class="oid">${esc(o.id)}</span><span>${money(o.total)}</span><span class="${statusClass(o.status)}">${esc(o.status)}</span></div>`).join('')
+      : '<p class="muted">Brak zamówień.</p>';
 
-  // Zmiana statusu zamowienia
+    const low = products.filter((p) => p.stock <= 5).sort((a, b) => a.stock - b.stock);
+    $('#dashLowStock').innerHTML = low.length
+      ? low.map((p) => `<div class="mini-row"><span>${esc(p.name)}</span><span class="status ${p.stock <= 0 ? 'anulowane' : 'w-realizacji'}">${p.stock} szt.</span></div>`).join('')
+      : '<p class="muted">Wszystko dobrze zatowarowane 👍</p>';
+  }
+
+  // ----- ZAMÓWIENIA -----
+  function renderOrders() {
+    const q = ($('#orderSearch').value || '').trim().toLowerCase();
+    const st = $('#orderStatusFilter').value;
+    let list = orders.slice();
+    if (st) list = list.filter((o) => o.status === st);
+    if (q) list = list.filter((o) => o.id.toLowerCase().includes(q) || o.customer.email.toLowerCase().includes(q) || o.customer.name.toLowerCase().includes(q));
+    $('#adminOrders').innerHTML = list.length ? list.map((o) => orderCard(o, true)).join('') : '<p class="muted">Brak zamówień dla kryteriów.</p>';
+  }
+  $('#orderSearch').addEventListener('input', renderOrders);
+  $('#orderStatusFilter').addEventListener('change', renderOrders);
   $('#adminOrders').addEventListener('change', async (e) => {
     const sel = e.target;
     if (!sel.dataset.order) return;
@@ -174,19 +199,51 @@ async function initAdmin() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: sel.dataset.order, status: sel.value })
     });
-    toast(ok ? `Status ${sel.dataset.order} → ${sel.value}` : (data.error || 'Błąd zmiany statusu'));
+    if (ok) { const o = orders.find((x) => x.id === sel.dataset.order); if (o) o.status = sel.value; toast(`Status ${sel.dataset.order} → ${sel.value}`); renderDash(); }
+    else toast(data.error || 'Błąd zmiany statusu');
   });
 
-  // ----- Zarzadzanie produktami -----
+  // ----- KLIENCI -----
+  function renderCustomers() {
+    const q = ($('#customerSearch').value || '').trim().toLowerCase();
+    const stat = {};
+    orders.forEach((o) => {
+      const key = o.userId || ('e:' + o.customer.email);
+      if (!stat[key]) stat[key] = { count: 0, sum: 0 };
+      stat[key].count++; if (o.status !== 'anulowane') stat[key].sum += o.total;
+    });
+    let list = users.filter((u) => u.role === 'customer');
+    if (q) list = list.filter((u) => (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q));
+    $('#adminCustomers').innerHTML = list.length ? `
+      <table class="admin-table">
+        <thead><tr><th>Imię</th><th>E-mail</th><th>Zamówienia</th><th>Wydane</th><th>Od</th></tr></thead>
+        <tbody>${list.map((u) => { const s = stat[u.id] || { count: 0, sum: 0 }; return `<tr>
+          <td>${esc(u.name)}</td><td>${esc(u.email || '—')}</td>
+          <td>${s.count}</td><td>${money(s.sum)}</td>
+          <td>${esc(new Date(u.created_at).toLocaleDateString('pl-PL'))}</td></tr>`; }).join('')}</tbody>
+      </table>` : '<p class="muted">Brak klientów.</p>';
+  }
+  $('#customerSearch').addEventListener('input', renderCustomers);
+
+  // ----- WIADOMOŚCI -----
+  function renderMessages() {
+    $('#adminMessages').innerHTML = messages.length ? messages.map((m) => `
+      <div class="order-card">
+        <div class="order-top"><strong>${esc(m.name)}</strong><span class="muted">${esc(new Date(m.createdAt).toLocaleString('pl-PL'))}</span></div>
+        <div class="muted" style="font-size:.85rem;margin-bottom:6px"><a href="mailto:${esc(m.email)}">${esc(m.email)}</a></div>
+        <div class="order-items">${esc(m.message)}</div>
+      </div>`).join('') : '<p class="muted">Brak wiadomości.</p>';
+  }
+
+  // ----- PRODUKTY (CRUD) -----
   const pForm = $('#productForm');
-  let productCache = [];
   async function loadAdminProducts() {
     const r = await api('/api/products');
-    productCache = Array.isArray(r.data) ? r.data : [];
-    $('#adminProducts').innerHTML = productCache.length ? `
+    products = Array.isArray(r.data) ? r.data : [];
+    $('#adminProducts').innerHTML = products.length ? `
       <table class="admin-table">
         <thead><tr><th>Nazwa</th><th>Kat.</th><th>Cena</th><th>Stan</th><th>Bestseller</th><th></th></tr></thead>
-        <tbody>${productCache.map((p) => `<tr data-id="${esc(p.id)}">
+        <tbody>${products.map((p) => `<tr data-id="${esc(p.id)}">
           <td>${esc(p.name)}</td>
           <td>${esc(p.category)}</td>
           <td>${money(p.price)}</td>
@@ -195,6 +252,7 @@ async function initAdmin() {
           <td><div class="prod-actions"><button class="edit" type="button">Edytuj</button><button class="del" type="button">Usuń</button></div></td>
         </tr>`).join('')}</tbody>
       </table>` : '<p class="muted">Brak produktów.</p>';
+    renderDash();
   }
   function resetProductForm() {
     pForm.reset(); pForm.editId.value = '';
@@ -204,10 +262,9 @@ async function initAdmin() {
     $('#prodCancel').hidden = true; $('#prodError').hidden = true;
   }
   $('#prodCancel').addEventListener('click', resetProductForm);
-
   $('#adminProducts').addEventListener('click', async (e) => {
     const tr = e.target.closest('tr'); if (!tr) return;
-    const p = productCache.find((x) => x.id === tr.dataset.id);
+    const p = products.find((x) => x.id === tr.dataset.id);
     if (!p) return;
     if (e.target.classList.contains('edit')) {
       pForm.editId.value = p.id;
@@ -218,7 +275,7 @@ async function initAdmin() {
       $('#prodFormTitle').textContent = 'Edytuj: ' + p.name;
       $('#prodSubmit').textContent = 'Zapisz zmiany';
       $('#prodCancel').hidden = false; $('#prodError').hidden = true;
-      $('#productsPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     if (e.target.classList.contains('del')) {
       if (!confirm(`Usunąć produkt "${p.name}"?`)) return;
@@ -229,7 +286,6 @@ async function initAdmin() {
       if (ok) loadAdminProducts();
     }
   });
-
   pForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('#prodError'); err.hidden = true;
@@ -247,7 +303,11 @@ async function initAdmin() {
     else { err.textContent = data.error || 'Błąd zapisu'; err.hidden = false; }
   });
 
-  loadAdminProducts();
+  // ----- Start -----
+  renderOrders();
+  renderCustomers();
+  renderMessages();
+  await loadAdminProducts(); // ustawia products i wywoluje renderDash()
 }
 
 /* ====== Start ====== */

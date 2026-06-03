@@ -723,6 +723,11 @@ const server = http.createServer(async (req, res) => {
       if (method === 'GET' && url === '/api/admin/users') {
         return sendJson(res, 200, { users: db.getAllUsers() });
       }
+      if (method === 'GET' && url === '/api/admin/messages') {
+        let list = [];
+        try { list = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf8')); } catch {}
+        return sendJson(res, 200, { messages: list.reverse() });
+      }
       if (method === 'POST' && url === '/api/admin/order-status') {
         try {
           const p = JSON.parse(await readBody(req) || '{}');
