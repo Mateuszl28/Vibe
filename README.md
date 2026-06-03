@@ -58,8 +58,12 @@ vibe-sklep/
   uruchomionego z flagą `--experimental-sqlite` (skrypt instalacyjny ustawia to sam).
 - **Rejestracja/logowanie:** klienci rejestrują się e-mailem (`/rejestracja`, `/logowanie`).
 - **Panel klienta** (`/konto`): dane konta + historia zamówień (zamówienia wiążą się z kontem).
-- **Panel admina** (`/admin`): lista zamówień ze zmianą statusu, lista klientów, statystyki.
+- **Panel admina** (`/admin`): lista zamówień ze zmianą statusu, **zarządzanie produktami**
+  (dodawanie / edycja / usuwanie), lista klientów, statystyki.
   Admin loguje się **loginem `admin`** + hasłem z konfiguracji (`ADMIN_PASSWORD`).
+- **Produkty w bazie:** tabela `products` (zamiast pliku). `products.json` służy tylko jako
+  zasiew przy pierwszym uruchomieniu (gdy tabela pusta). Zmiany z panelu admina są od razu
+  widoczne w katalogu, na stronach produktów, w `sitemap.xml` i danych strukturalnych.
 
 ### Bezpieczeństwo bazy
 

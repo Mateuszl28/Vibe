@@ -127,9 +127,16 @@ async function initAdmin() {
   $('#adminHello').textContent = `Zalogowano jako ${me.data.user.name} (${me.data.user.username || me.data.user.email}).`;
   $('#logoutBtn').addEventListener('click', doLogout);
 
-  const tabOrders = $('#tabOrders'), tabUsers = $('#tabUsers');
-  tabOrders.addEventListener('click', () => { tabOrders.classList.add('active'); tabUsers.classList.remove('active'); $('#ordersPanel').hidden = false; $('#usersPanel').hidden = true; });
-  tabUsers.addEventListener('click', () => { tabUsers.classList.add('active'); tabOrders.classList.remove('active'); $('#usersPanel').hidden = false; $('#ordersPanel').hidden = true; });
+  const tabOrders = $('#tabOrders'), tabProducts = $('#tabProducts'), tabUsers = $('#tabUsers');
+  const tabs = [
+    { btn: tabOrders, panel: '#ordersPanel' },
+    { btn: tabProducts, panel: '#productsPanel' },
+    { btn: tabUsers, panel: '#usersPanel' }
+  ];
+  function showTab(active) {
+    tabs.forEach((t) => { t.btn.classList.toggle('active', t.btn === active.btn); $(t.panel).hidden = t !== active; });
+  }
+  tabs.forEach((t) => t.btn.addEventListener('click', () => showTab(t)));
 
   const ord = await api('/api/admin/orders');
   const orders = (ord.data.orders) || [];
@@ -169,6 +176,78 @@ async function initAdmin() {
     });
     toast(ok ? `Status ${sel.dataset.order} → ${sel.value}` : (data.error || 'Błąd zmiany statusu'));
   });
+
+  // ----- Zarzadzanie produktami -----
+  const pForm = $('#productForm');
+  let productCache = [];
+  async function loadAdminProducts() {
+    const r = await api('/api/products');
+    productCache = Array.isArray(r.data) ? r.data : [];
+    $('#adminProducts').innerHTML = productCache.length ? `
+      <table class="admin-table">
+        <thead><tr><th>Nazwa</th><th>Kat.</th><th>Cena</th><th>Rozmiary</th><th>Bestseller</th><th></th></tr></thead>
+        <tbody>${productCache.map((p) => `<tr data-id="${esc(p.id)}">
+          <td>${esc(p.name)}</td>
+          <td>${esc(p.category)}</td>
+          <td>${money(p.price)}</td>
+          <td>${esc(p.sizes.join(', '))}</td>
+          <td>${p.featured ? '★' : '—'}</td>
+          <td><div class="prod-actions"><button class="edit" type="button">Edytuj</button><button class="del" type="button">Usuń</button></div></td>
+        </tr>`).join('')}</tbody>
+      </table>` : '<p class="muted">Brak produktów.</p>';
+  }
+  function resetProductForm() {
+    pForm.reset(); pForm.editId.value = '';
+    pForm.color.value = '#1f2933'; pForm.accent.value = '#7c5cff';
+    $('#prodFormTitle').textContent = 'Dodaj produkt';
+    $('#prodSubmit').textContent = 'Dodaj produkt';
+    $('#prodCancel').hidden = true; $('#prodError').hidden = true;
+  }
+  $('#prodCancel').addEventListener('click', resetProductForm);
+
+  $('#adminProducts').addEventListener('click', async (e) => {
+    const tr = e.target.closest('tr'); if (!tr) return;
+    const p = productCache.find((x) => x.id === tr.dataset.id);
+    if (!p) return;
+    if (e.target.classList.contains('edit')) {
+      pForm.editId.value = p.id;
+      pForm.name.value = p.name; pForm.category.value = p.category; pForm.price.value = p.price;
+      pForm.featured.value = p.featured ? '1' : '0';
+      pForm.colors.value = p.colors.join(', '); pForm.sizes.value = p.sizes.join(', ');
+      pForm.color.value = p.color; pForm.accent.value = p.accent; pForm.description.value = p.description;
+      $('#prodFormTitle').textContent = 'Edytuj: ' + p.name;
+      $('#prodSubmit').textContent = 'Zapisz zmiany';
+      $('#prodCancel').hidden = false; $('#prodError').hidden = true;
+      $('#productsPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    if (e.target.classList.contains('del')) {
+      if (!confirm(`Usunąć produkt "${p.name}"?`)) return;
+      const { ok, data } = await api('/api/admin/products/delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id })
+      });
+      toast(ok ? 'Usunięto produkt' : (data.error || 'Błąd'));
+      if (ok) loadAdminProducts();
+    }
+  });
+
+  pForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#prodError'); err.hidden = true;
+    const editId = pForm.editId.value;
+    const payload = {
+      id: editId || undefined,
+      name: pForm.name.value, category: pForm.category.value, price: pForm.price.value,
+      colors: pForm.colors.value, sizes: pForm.sizes.value, color: pForm.color.value,
+      accent: pForm.accent.value, description: pForm.description.value, featured: pForm.featured.value === '1'
+    };
+    const { ok, data } = await api(editId ? '/api/admin/products/update' : '/api/admin/products', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    if (ok) { toast(editId ? 'Zapisano zmiany' : 'Dodano produkt'); resetProductForm(); loadAdminProducts(); }
+    else { err.textContent = data.error || 'Błąd zapisu'; err.hidden = false; }
+  });
+
+  loadAdminProducts();
 }
 
 /* ====== Start ====== */

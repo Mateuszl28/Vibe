@@ -43,7 +43,9 @@ function loadProducts() {
     return [];
   }
 }
-let PRODUCTS = loadProducts();
+// Produkty zyja w bazie. Przy pierwszym uruchomieniu zasiewamy je z products.json.
+db.seedProductsIfEmpty(loadProducts());
+let PRODUCTS = db.getAllProducts();
 
 // Bazowy adres witryny (do SEO: canonical, OG, sitemap). Ustaw przez SITE_URL.
 const SITE_URL = (process.env.SITE_URL || `http://85.215.197.199:${PORT}`).replace(/\/$/, '');
@@ -341,6 +343,13 @@ function sendHtml(res, html) {
   res.end(html);
 }
 
+// Przeladowanie produktow z bazy + uniewaznienie cache stron (po zmianach admina)
+function refreshProducts() {
+  PRODUCTS = db.getAllProducts();
+  for (const k in renderCache) delete renderCache[k];
+  for (const k in productCache) delete productCache[k];
+}
+
 const ROBOTS_TXT = `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
 function buildSitemap() {
   const urls = [SITE_URL + '/']
@@ -526,6 +535,36 @@ function handleContact(res, raw) {
   return sendJson(res, 201, { ok: true });
 }
 
+// ---- produkty: walidacja/normalizacja (panel admina) ----
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+function parseList(v) {
+  if (Array.isArray(v)) return v.map((s) => String(s).trim()).filter(Boolean);
+  return String(v || '').split(',').map((s) => s.trim()).filter(Boolean);
+}
+function slugify(s) {
+  return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+}
+function buildProductFromPayload(p) {
+  const name = String(p.name || '').trim();
+  const category = p.category === 'bluza' ? 'bluza' : (p.category === 'koszulka' ? 'koszulka' : '');
+  const price = Math.round(Number(p.price) * 100) / 100;
+  const colors = parseList(p.colors);
+  const sizes = parseList(p.sizes);
+  const color = HEX_RE.test(p.color) ? p.color : '#1f2933';
+  const accent = HEX_RE.test(p.accent) ? p.accent : '#7c5cff';
+  const description = String(p.description || '').trim();
+  const featured = !!p.featured;
+  const errors = [];
+  if (name.length < 2) errors.push('Podaj nazwe produktu.');
+  if (!category) errors.push('Wybierz kategorie (bluza/koszulka).');
+  if (!(price > 0) || !isFinite(price)) errors.push('Podaj poprawna cene (> 0).');
+  if (!colors.length) errors.push('Podaj min. 1 kolor.');
+  if (!sizes.length) errors.push('Podaj min. 1 rozmiar.');
+  if (description.length < 3) errors.push('Podaj opis.');
+  return { errors, product: { name, category, price, colors, sizes, color, accent, description, featured } };
+}
+
 // ---- router ----
 const server = http.createServer(async (req, res) => {
   setSecurityHeaders(res);
@@ -665,6 +704,38 @@ const server = http.createServer(async (req, res) => {
           if (!p.id || !allowed.includes(p.status)) return sendJson(res, 400, { error: 'Niepoprawne dane.' });
           const ok = db.updateOrderStatus(String(p.id), p.status);
           return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Nie znaleziono zamowienia.' });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      // Produkty: dodawanie / edycja / usuwanie
+      if (method === 'POST' && url === '/api/admin/products') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const { errors, product } = buildProductFromPayload(p);
+          if (errors.length) return sendJson(res, 400, { error: errors.join(' ') });
+          let id = slugify(p.id || product.name) || ('produkt-' + (db.countProducts() + 1));
+          if (db.getProductById(id)) id = id + '-' + (db.countProducts() + 1);
+          db.createProduct({ ...product, id, sort: db.countProducts() });
+          refreshProducts();
+          return sendJson(res, 201, { ok: true, id });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      if (method === 'POST' && url === '/api/admin/products/update') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          if (!p.id || !db.getProductById(String(p.id))) return sendJson(res, 404, { error: 'Nie ma takiego produktu.' });
+          const { errors, product } = buildProductFromPayload(p);
+          if (errors.length) return sendJson(res, 400, { error: errors.join(' ') });
+          db.updateProduct({ ...product, id: String(p.id) });
+          refreshProducts();
+          return sendJson(res, 200, { ok: true });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      if (method === 'POST' && url === '/api/admin/products/delete') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const ok = db.deleteProduct(String(p.id || ''));
+          if (ok) refreshProducts();
+          return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Nie znaleziono produktu.' });
         } catch (err) { return sendJson(res, 400, { error: err.message }); }
       }
       return sendJson(res, 404, { error: 'Nieznany endpoint admina.' });
