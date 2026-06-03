@@ -179,6 +179,16 @@ async function initAdmin() {
     $('#dashLowStock').innerHTML = low.length
       ? low.map((p) => `<div class="mini-row"><span>${esc(p.name)}</span><span class="status ${p.stock <= 0 ? 'anulowane' : 'w-realizacji'}">${p.stock} szt.</span></div>`).join('')
       : '<p class="muted">Wszystko dobrze zatowarowane 👍</p>';
+
+    const sales = {};
+    orders.forEach((o) => { if (o.status === 'anulowane') return; o.items.forEach((it) => {
+      if (!sales[it.id]) sales[it.id] = { name: it.name, qty: 0, sum: 0 };
+      sales[it.id].qty += it.qty; sales[it.id].sum += it.lineTotal;
+    }); });
+    const top = Object.values(sales).sort((a, b) => b.qty - a.qty).slice(0, 5);
+    $('#dashTop').innerHTML = top.length
+      ? top.map((t, i) => `<div class="mini-row"><span>${i + 1}. ${esc(t.name)}</span><span>${t.qty} szt. · ${money(t.sum)}</span></div>`).join('')
+      : '<p class="muted">Brak danych sprzedaży.</p>';
   }
 
   // ----- ZAMÓWIENIA -----
@@ -203,7 +213,28 @@ async function initAdmin() {
     else toast(data.error || 'Błąd zmiany statusu');
   });
 
-  // ----- KLIENCI -----
+  // Eksport zamówień do CSV
+  const csvCell = (s) => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+  $('#exportOrders').addEventListener('click', () => {
+    if (!orders.length) { toast('Brak zamówień do eksportu'); return; }
+    const rows = [['Nr', 'Data', 'Status', 'Klient', 'E-mail', 'Telefon', 'Adres', 'Produkty', 'Suma (zł)']];
+    orders.forEach((o) => {
+      const items = o.items.map((i) => `${i.name} ${i.size}/${i.color} x${i.qty}`).join('; ');
+      rows.push([o.id, new Date(o.createdAt).toLocaleString('pl-PL'), o.status, o.customer.name,
+        o.customer.email, o.customer.phone || '', o.customer.address, items, o.total.toFixed(2)]);
+    });
+    const csv = rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'zamowienia-vibe.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Wyeksportowano CSV');
+  });
+
+  // ----- KLIENCI / UŻYTKOWNICY -----
+  const adminId = me.data.user.id;
   function renderCustomers() {
     const q = ($('#customerSearch').value || '').trim().toLowerCase();
     const stat = {};
@@ -212,28 +243,68 @@ async function initAdmin() {
       if (!stat[key]) stat[key] = { count: 0, sum: 0 };
       stat[key].count++; if (o.status !== 'anulowane') stat[key].sum += o.total;
     });
-    let list = users.filter((u) => u.role === 'customer');
-    if (q) list = list.filter((u) => (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q));
+    let list = users.slice();
+    if (q) list = list.filter((x) => (x.name || '').toLowerCase().includes(q) || (x.email || x.username || '').toLowerCase().includes(q));
     $('#adminCustomers').innerHTML = list.length ? `
       <table class="admin-table">
-        <thead><tr><th>Imię</th><th>E-mail</th><th>Zamówienia</th><th>Wydane</th><th>Od</th></tr></thead>
-        <tbody>${list.map((u) => { const s = stat[u.id] || { count: 0, sum: 0 }; return `<tr>
-          <td>${esc(u.name)}</td><td>${esc(u.email || '—')}</td>
+        <thead><tr><th>Imię</th><th>E-mail / login</th><th>Zamówienia</th><th>Wydane</th><th>Rola</th><th></th></tr></thead>
+        <tbody>${list.map((x) => { const s = stat[x.id] || { count: 0, sum: 0 }; const self = x.id === adminId; return `<tr data-id="${x.id}">
+          <td>${esc(x.name)}${self ? ' <span class="muted">(Ty)</span>' : ''}</td>
+          <td>${esc(x.email || x.username || '—')}</td>
           <td>${s.count}</td><td>${money(s.sum)}</td>
-          <td>${esc(new Date(u.created_at).toLocaleDateString('pl-PL'))}</td></tr>`; }).join('')}</tbody>
-      </table>` : '<p class="muted">Brak klientów.</p>';
+          <td><select class="mini-input urole" ${self ? 'disabled' : ''}>
+            <option value="customer" ${x.role === 'customer' ? 'selected' : ''}>klient</option>
+            <option value="admin" ${x.role === 'admin' ? 'selected' : ''}>admin</option>
+          </select></td>
+          <td><div class="prod-actions"><button class="del" type="button" ${self ? 'disabled' : ''}>Usuń</button></div></td>
+        </tr>`; }).join('')}</tbody>
+      </table>` : '<p class="muted">Brak użytkowników.</p>';
   }
   $('#customerSearch').addEventListener('input', renderCustomers);
+  $('#adminCustomers').addEventListener('change', async (e) => {
+    if (!e.target.classList.contains('urole')) return;
+    const id = parseInt(e.target.closest('tr').dataset.id, 10);
+    const { ok, data } = await api('/api/admin/users/role', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, role: e.target.value })
+    });
+    if (ok) { const us = users.find((u2) => u2.id === id); if (us) us.role = e.target.value; toast('Zmieniono rolę'); renderDash(); }
+    else { toast(data.error || 'Błąd'); renderCustomers(); }
+  });
+  $('#adminCustomers').addEventListener('click', async (e) => {
+    if (!e.target.classList.contains('del')) return;
+    const id = parseInt(e.target.closest('tr').dataset.id, 10);
+    const us = users.find((u2) => u2.id === id);
+    if (!confirm(`Usunąć konto „${us ? us.name : id}"? Tej operacji nie można cofnąć.`)) return;
+    const { ok, data } = await api('/api/admin/users/delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id })
+    });
+    if (ok) { const i = users.findIndex((u2) => u2.id === id); if (i >= 0) users.splice(i, 1); toast('Usunięto konto'); renderCustomers(); renderDash(); }
+    else toast(data.error || 'Błąd');
+  });
 
   // ----- WIADOMOŚCI -----
   function renderMessages() {
     $('#adminMessages').innerHTML = messages.length ? messages.map((m) => `
-      <div class="order-card">
-        <div class="order-top"><strong>${esc(m.name)}</strong><span class="muted">${esc(new Date(m.createdAt).toLocaleString('pl-PL'))}</span></div>
+      <div class="order-card" data-ts="${esc(m.createdAt)}">
+        <div class="order-top">
+          <strong>${esc(m.name)}</strong>
+          <span><span class="muted">${esc(new Date(m.createdAt).toLocaleString('pl-PL'))}</span>
+          <button class="msg-del prod-actions" type="button" title="Usuń" style="margin-left:10px;border:none;background:none;color:var(--danger);cursor:pointer">✕</button></span>
+        </div>
         <div class="muted" style="font-size:.85rem;margin-bottom:6px"><a href="mailto:${esc(m.email)}">${esc(m.email)}</a></div>
         <div class="order-items">${esc(m.message)}</div>
       </div>`).join('') : '<p class="muted">Brak wiadomości.</p>';
   }
+  $('#adminMessages').addEventListener('click', async (e) => {
+    if (!e.target.classList.contains('msg-del')) return;
+    const ts = e.target.closest('[data-ts]').dataset.ts;
+    if (!confirm('Usunąć tę wiadomość?')) return;
+    const { ok, data } = await api('/api/admin/messages/delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ createdAt: ts })
+    });
+    if (ok) { const i = messages.findIndex((m) => m.createdAt === ts); if (i >= 0) messages.splice(i, 1); toast('Usunięto wiadomość'); renderMessages(); }
+    else toast(data.error || 'Błąd');
+  });
 
   // ----- PRODUKTY (CRUD) -----
   const pForm = $('#productForm');

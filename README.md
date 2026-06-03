@@ -60,11 +60,14 @@ vibe-sklep/
 - **Panel klienta** (`/konto`): dane konta + historia zamówień (zamówienia wiążą się z kontem).
 - **Panel admina** (`/admin`) z bocznym menu jak w prawdziwym sklepie:
   - **Pulpit** — KPI (obrót, zamówienia, nowe, klienci), wykres sprzedaży 7 dni, ostatnie
-    zamówienia, alerty niskich stanów.
-  - **Zamówienia** — filtr po statusie + wyszukiwarka, zmiana statusu, dane klienta.
+    zamówienia, alerty niskich stanów, **bestsellery** (najczęściej kupowane).
+  - **Zamówienia** — filtr po statusie + wyszukiwarka, zmiana statusu, dane klienta,
+    **eksport do CSV**.
   - **Produkty** — dodawanie / edycja / usuwanie, stany magazynowe.
-  - **Klienci** — lista z liczbą zamówień i wydaną kwotą, wyszukiwarka.
-  - **Wiadomości** — zgłoszenia z formularza kontaktowego.
+  - **Klienci** — lista z liczbą zamówień i wydaną kwotą, wyszukiwarka, **zmiana roli
+    (klient↔admin) i usuwanie konta** (z zabezpieczeniami: nie można usunąć siebie ani
+    ostatniego admina).
+  - **Wiadomości** — zgłoszenia z formularza kontaktowego, z możliwością usuwania.
   - Admin loguje się **loginem `admin`** + hasłem z konfiguracji (`ADMIN_PASSWORD`).
 - **Produkty w bazie:** tabela `products` (zamiast pliku). `products.json` służy tylko jako
   zasiew przy pierwszym uruchomieniu (gdy tabela pusta). Zmiany z panelu admina są od razu

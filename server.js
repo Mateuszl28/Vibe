@@ -728,6 +728,46 @@ const server = http.createServer(async (req, res) => {
         try { list = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf8')); } catch {}
         return sendJson(res, 200, { messages: list.reverse() });
       }
+      if (method === 'POST' && url === '/api/admin/users/role') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const id = parseInt(p.id, 10);
+          const role = p.role === 'admin' ? 'admin' : (p.role === 'customer' ? 'customer' : null);
+          if (!id || !role) return sendJson(res, 400, { error: 'Niepoprawne dane.' });
+          if (id === u.id) return sendJson(res, 400, { error: 'Nie mozesz zmienic wlasnej roli.' });
+          const target = db.getUserById(id);
+          if (!target) return sendJson(res, 404, { error: 'Nie ma takiego uzytkownika.' });
+          if (target.role === 'admin' && role === 'customer' && db.countAdmins() <= 1)
+            return sendJson(res, 400, { error: 'To ostatni administrator.' });
+          db.setUserRole(id, role);
+          return sendJson(res, 200, { ok: true });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      if (method === 'POST' && url === '/api/admin/users/delete') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const id = parseInt(p.id, 10);
+          if (!id) return sendJson(res, 400, { error: 'Niepoprawne dane.' });
+          if (id === u.id) return sendJson(res, 400, { error: 'Nie mozesz usunac wlasnego konta.' });
+          const target = db.getUserById(id);
+          if (!target) return sendJson(res, 404, { error: 'Nie ma takiego uzytkownika.' });
+          if (target.role === 'admin' && db.countAdmins() <= 1)
+            return sendJson(res, 400, { error: 'Nie mozna usunac ostatniego admina.' });
+          db.deleteUser(id);
+          return sendJson(res, 200, { ok: true });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      if (method === 'POST' && url === '/api/admin/messages/delete') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          let list = [];
+          try { list = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf8')); } catch {}
+          const before = list.length;
+          list = list.filter((m) => m.createdAt !== p.createdAt);
+          fs.writeFileSync(MESSAGES_FILE, JSON.stringify(list, null, 2));
+          return sendJson(res, 200, { ok: true, removed: before - list.length });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
       if (method === 'POST' && url === '/api/admin/order-status') {
         try {
           const p = JSON.parse(await readBody(req) || '{}');
