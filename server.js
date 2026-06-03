@@ -82,15 +82,27 @@ function buildJsonLd() {
   return `<script type="application/ld+json">${JSON.stringify([store, itemList])}</script>`;
 }
 
-// index.html z podstawionymi placeholderami SEO (budowane raz, cache w pamieci)
-let renderedIndex = null;
-function getIndexHtml() {
-  if (renderedIndex) return renderedIndex;
-  let html = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
-  html = html.replace(/__SITE_URL__/g, SITE_URL).replace('__JSONLD__', buildJsonLd());
-  renderedIndex = html;
+// Render szablonu HTML z podstawieniem placeholderow SEO (cache w pamieci).
+const renderCache = {};
+function renderTemplate(absPath) {
+  if (renderCache[absPath]) return renderCache[absPath];
+  let html = fs.readFileSync(absPath, 'utf8');
+  html = html.replace(/__SITE_URL__/g, SITE_URL);
+  if (html.includes('__JSONLD__')) html = html.replace('__JSONLD__', buildJsonLd());
+  renderCache[absPath] = html;
   return html;
 }
+function getIndexHtml() {
+  return renderTemplate(path.join(PUBLIC_DIR, 'index.html'));
+}
+
+// Osobne podstrony (czyste URL-e). Pliki w katalogu pages/ (poza public, nie serwowane statycznie).
+const PAGES_DIR = path.join(ROOT, 'pages');
+const PAGES = {
+  '/dostawa-zwroty': 'dostawa-zwroty.html',
+  '/tabela-rozmiarow': 'tabela-rozmiarow.html',
+  '/kontakt': 'kontakt.html'
+};
 function sendHtml(res, html) {
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
   res.end(html);
@@ -99,6 +111,7 @@ function sendHtml(res, html) {
 const ROBOTS_TXT = `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
 function buildSitemap() {
   const urls = [SITE_URL + '/']
+    .concat(Object.keys(PAGES).map((slug) => SITE_URL + slug))
     .concat(PRODUCTS.map((p) => SITE_URL + '/?produkt=' + p.id));
   const body = urls.map((u) => `  <url><loc>${u}</loc><changefreq>weekly</changefreq></url>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>`;
@@ -236,6 +249,30 @@ function handleCreateOrder(req, res, raw) {
   return sendJson(res, 201, { ok: true, orderId: id, total: order.total });
 }
 
+// ---- wiadomosci z formularza kontaktowego ----
+const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
+function handleContact(res, raw) {
+  let p;
+  try { p = JSON.parse(raw || '{}'); } catch { return sendJson(res, 400, { error: 'Niepoprawny JSON.' }); }
+  const name = String(p.name || '').trim();
+  const email = String(p.email || '').trim();
+  const message = String(p.message || '').trim();
+  if (name.length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || message.length < 5) {
+    return sendJson(res, 400, { error: 'Uzupelnij poprawnie imie, e-mail i wiadomosc.' });
+  }
+  try {
+    let list = [];
+    try { list = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf8')); } catch {}
+    list.push({ name, email, message, createdAt: new Date().toISOString() });
+    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(list, null, 2));
+  } catch (err) {
+    console.error('Blad zapisu wiadomosci:', err.message);
+    return sendJson(res, 500, { error: 'Nie udalo sie wyslac wiadomosci.' });
+  }
+  console.log(`[KONTAKT] ${email} - ${name}`);
+  return sendJson(res, 201, { ok: true });
+}
+
 // ---- router ----
 const server = http.createServer(async (req, res) => {
   const url = req.url || '/';
@@ -257,6 +294,15 @@ const server = http.createServer(async (req, res) => {
     return sendHtml(res, getIndexHtml());
   }
 
+  // Osobne podstrony (Pomoc): /dostawa-zwroty, /tabela-rozmiarow, /kontakt
+  if (method === 'GET' && PAGES[pathOnly]) {
+    try {
+      return sendHtml(res, renderTemplate(path.join(PAGES_DIR, PAGES[pathOnly])));
+    } catch {
+      res.writeHead(404); return res.end('404');
+    }
+  }
+
   // API
   if (url.startsWith('/api/')) {
     if (method === 'GET' && url === '/api/health') {
@@ -275,6 +321,14 @@ const server = http.createServer(async (req, res) => {
       try {
         const raw = await readBody(req);
         return handleCreateOrder(req, res, raw);
+      } catch (err) {
+        return sendJson(res, 400, { error: err.message });
+      }
+    }
+    if (method === 'POST' && url === '/api/contact') {
+      try {
+        const raw = await readBody(req);
+        return handleContact(res, raw);
       } catch (err) {
         return sendJson(res, 400, { error: err.message });
       }

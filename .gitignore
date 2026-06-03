@@ -1,8 +1,9 @@
 # Zaleznosci (sklep ich nie ma, ale na wszelki wypadek)
 node_modules/
 
-# Dane runtime - zamowienia NIE trafiaja do repo
+# Dane runtime - zamowienia i wiadomosci NIE trafiaja do repo
 data/orders.json
+data/messages.json
 
 # Logi
 *.log
