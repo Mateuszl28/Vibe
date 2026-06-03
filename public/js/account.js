@@ -3,6 +3,7 @@
 /* Obsluga stron: logowanie/rejestracja, panel klienta, panel admina */
 
 const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const money = (n) => Number(n).toFixed(2).replace('.', ',') + ' zł';
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
