@@ -46,6 +46,91 @@ let PRODUCTS = loadProducts();
 // Bazowy adres witryny (do SEO: canonical, OG, sitemap). Ustaw przez SITE_URL.
 const SITE_URL = (process.env.SITE_URL || `http://85.215.197.199:${PORT}`).replace(/\/$/, '');
 
+// ---- pomocnicze SEO/SVG ----
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function shade(hex, pct) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.min(255, (n >> 16) + Math.round(255 * pct / 100)));
+  const g = Math.max(0, Math.min(255, ((n >> 8) & 255) + Math.round(255 * pct / 100)));
+  const b = Math.max(0, Math.min(255, (n & 255) + Math.round(255 * pct / 100)));
+  return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+}
+function contrast(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const yiq = ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000;
+  return yiq >= 150 ? '#1a1a1a' : '#ffffff';
+}
+function garmentPath(category, color) {
+  if (category === 'bluza') {
+    return `<g fill="none" stroke="${color}" stroke-width="7" stroke-linejoin="round" stroke-linecap="round" transform="translate(-70,-70)">
+      <path d="M70 35 q30 -20 60 0 l30 18 -18 30 -12 -7 v70 h-90 v-70 l-12 7 -18 -30 z"/>
+      <path d="M85 35 q15 22 30 0"/></g>`;
+  }
+  return `<g fill="none" stroke="${color}" stroke-width="7" stroke-linejoin="round" stroke-linecap="round" transform="translate(-70,-60)">
+    <path d="M70 30 l-40 22 18 30 12 -7 v62 h80 v-62 l12 7 18 -30 -40 -22 q-30 22 -60 0 z"/></g>`;
+}
+// Kafelek produktu (proporcje 4:5) — uzywany na stronie produktu
+function productTileSvg(p) {
+  return `<svg viewBox="0 0 320 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(p.name)}">
+    <defs><linearGradient id="t-${p.id}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${p.color}"/><stop offset="1" stop-color="${shade(p.color, -18)}"/>
+    </linearGradient></defs>
+    <rect width="320" height="400" fill="url(#t-${p.id})"/>
+    <g transform="translate(160,180)">${garmentPath(p.category, p.accent)}</g>
+    <text x="160" y="350" text-anchor="middle" font-family="Sora, Arial" font-size="24" font-weight="800" fill="${contrast(p.color)}" opacity="0.92">${esc(p.name)}</text>
+  </svg>`;
+}
+// Obrazek Open Graph per produkt (1200x630)
+function productOgSvg(p) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+    <defs><linearGradient id="o-${p.id}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${p.color}"/><stop offset="1" stop-color="${shade(p.color, -22)}"/>
+    </linearGradient></defs>
+    <rect width="1200" height="630" fill="url(#o-${p.id})"/>
+    <g transform="translate(900,315) scale(2.4)">${garmentPath(p.category, p.accent)}</g>
+    <text x="80" y="150" font-family="Sora, Arial" font-size="40" font-weight="800" fill="${contrast(p.color)}" opacity="0.85">VIBE.</text>
+    <text x="80" y="320" font-family="Sora, Arial" font-size="72" font-weight="800" fill="${contrast(p.color)}">${esc(p.name)}</text>
+    <text x="80" y="400" font-family="Inter, Arial" font-size="44" font-weight="700" fill="${contrast(p.color)}" opacity="0.85">${p.price.toFixed(2)} zł</text>
+  </svg>`;
+}
+
+function colorHex(name) {
+  const map = { czarny:'#18181b', bialy:'#f4f4f5', szary:'#9aa1ad', grafit:'#2b2f36',
+    bezowy:'#c8b59a', oliwkowy:'#5c6b3f', granatowy:'#1e2a4a', kremowy:'#ece4d4', piaskowy:'#d8c4a0' };
+  return map[name] || '#888';
+}
+// Kafelek na karte (bez napisu) — spojny z wersja kliencka
+function productCardSvg(p) {
+  return `<svg viewBox="0 0 320 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs><linearGradient id="c-${p.id}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${p.color}"/><stop offset="1" stop-color="${shade(p.color, -18)}"/>
+    </linearGradient></defs>
+    <rect width="320" height="400" fill="url(#c-${p.id})"/>
+    <g transform="translate(160,180)">${garmentPath(p.category, p.accent)}</g>
+  </svg>`;
+}
+function moneyPl(n) { return n.toFixed(2).replace('.', ',') + ' zł'; }
+function starsStr(score) {
+  const f = Math.round(score);
+  return '★★★★★'.slice(0, f) + '☆☆☆☆☆'.slice(0, 5 - f);
+}
+// Serwerowo wyrenderowana karta produktu (z linkiem -> SEO)
+function serverCard(p) {
+  const r = ratingFor(p.id);
+  return `<a class="card" href="/produkt/${p.id}" data-id="${p.id}">
+    <div class="card-img">${productCardSvg(p)}<span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>${p.featured ? '<span class="badge hot">Bestseller</span>' : ''}</div>
+    <div class="card-body">
+      <div class="card-name">${esc(p.name)}</div>
+      <div class="card-rating">${starsStr(r.score)} <span>${r.score.toFixed(1)} (${r.count})</span></div>
+      <div class="card-colors">${p.colors.map((c) => `<span class="swatch" style="background:${colorHex(c)}" title="${esc(c)}"></span>`).join('')}</div>
+      <div class="card-foot"><span class="price">${moneyPl(p.price)}</span><button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button></div>
+    </div>
+  </a>`;
+}
+function buildCatalogHtml() { return PRODUCTS.map((p) => serverCard(p)).join(''); }
+
 // ---- SEO: dane strukturalne JSON-LD ----
 function buildJsonLd() {
   const store = {
@@ -55,8 +140,14 @@ function buildJsonLd() {
     description: 'Sklep ze streetwearem premium — bluzy i koszulki.',
     url: SITE_URL + '/',
     image: SITE_URL + '/img/og-cover.svg',
+    logo: SITE_URL + '/img/favicon.svg',
     priceRange: '79-249 zł',
-    currenciesAccepted: 'PLN'
+    currenciesAccepted: 'PLN',
+    sameAs: [
+      'https://instagram.com/vibe',
+      'https://tiktok.com/@vibe',
+      'https://facebook.com/vibe'
+    ]
   };
   const itemList = {
     '@context': 'https://schema.org',
@@ -89,6 +180,7 @@ function renderTemplate(absPath) {
   let html = fs.readFileSync(absPath, 'utf8');
   html = html.replace(/__SITE_URL__/g, SITE_URL);
   if (html.includes('__JSONLD__')) html = html.replace('__JSONLD__', buildJsonLd());
+  if (html.includes('__CATALOG__')) html = html.replace('__CATALOG__', buildCatalogHtml());
   renderCache[absPath] = html;
   return html;
 }
@@ -103,6 +195,81 @@ const PAGES = {
   '/tabela-rozmiarow': 'tabela-rozmiarow.html',
   '/kontakt': 'kontakt.html'
 };
+
+// Pseudo-oceny (stabilne na podstawie id) — identyczne jak na frontendzie
+function ratingFor(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return { score: (4.5 + (h % 5) / 10), count: 40 + (h % 260) };
+}
+
+// JSON-LD dla pojedynczego produktu (Product + BreadcrumbList)
+function buildProductJsonLd(p) {
+  const r = ratingFor(p.id);
+  const product = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: p.name,
+    description: p.description,
+    image: SITE_URL + '/img/produkt/' + p.id + '.svg',
+    category: p.category === 'bluza' ? 'Bluzy' : 'Koszulki',
+    brand: { '@type': 'Brand', name: 'Vibe' },
+    color: p.colors.join(', '),
+    offers: {
+      '@type': 'Offer',
+      price: p.price.toFixed(2),
+      priceCurrency: 'PLN',
+      availability: 'https://schema.org/InStock',
+      url: SITE_URL + '/produkt/' + p.id
+    },
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: r.score.toFixed(1),
+      reviewCount: r.count,
+      bestRating: '5'
+    }
+  };
+  const crumbs = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Strona główna', item: SITE_URL + '/' },
+      { '@type': 'ListItem', position: 2, name: p.category === 'bluza' ? 'Bluzy' : 'Koszulki', item: SITE_URL + '/' },
+      { '@type': 'ListItem', position: 3, name: p.name, item: SITE_URL + '/produkt/' + p.id }
+    ]
+  };
+  return `<script type="application/ld+json">${JSON.stringify([product, crumbs])}</script>`;
+}
+
+// Render strony produktu z szablonu pages/produkt.html
+const productCache = {};
+function getProductHtml(p) {
+  if (productCache[p.id]) return productCache[p.id];
+  const r = ratingFor(p.id);
+  const tpl = fs.readFileSync(path.join(PAGES_DIR, 'produkt.html'), 'utf8');
+  const catLabel = p.category === 'bluza' ? 'Bluzy' : 'Koszulki';
+  const sizeOpts = p.sizes.map((s, i) => `<button type="button" class="opt ${i === 0 ? 'selected' : ''}" data-size="${esc(s)}">${esc(s)}</button>`).join('');
+  const colorOpts = p.colors.map((c, i) => `<button type="button" class="opt ${i === 0 ? 'selected' : ''}" data-color="${esc(c)}">${esc(c)}</button>`).join('');
+  const stars = '★★★★★'.slice(0, Math.round(r.score)) + '☆☆☆☆☆'.slice(0, 5 - Math.round(r.score));
+  const repl = {
+    SITE_URL,
+    JSONLD: buildProductJsonLd(p),
+    P_ID: esc(p.id),
+    P_NAME: esc(p.name),
+    P_DESC: esc(p.description),
+    P_CAT: esc(catLabel),
+    P_PRICE: p.price.toFixed(2).replace('.', ',') + ' zł',
+    P_IMG: productTileSvg(p),
+    P_SIZES: sizeOpts,
+    P_COLORS: colorOpts,
+    P_STARS: stars,
+    P_SCORE: r.score.toFixed(1),
+    P_COUNT: String(r.count)
+  };
+  let html = tpl.replace(/__([A-Z_]+)__/g, (m, key) => (key in repl ? repl[key] : m));
+  productCache[p.id] = html;
+  return html;
+}
 function sendHtml(res, html) {
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
   res.end(html);
@@ -112,7 +279,7 @@ const ROBOTS_TXT = `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\
 function buildSitemap() {
   const urls = [SITE_URL + '/']
     .concat(Object.keys(PAGES).map((slug) => SITE_URL + slug))
-    .concat(PRODUCTS.map((p) => SITE_URL + '/?produkt=' + p.id));
+    .concat(PRODUCTS.map((p) => SITE_URL + '/produkt/' + p.id));
   const body = urls.map((u) => `  <url><loc>${u}</loc><changefreq>weekly</changefreq></url>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>`;
 }
@@ -300,6 +467,28 @@ const server = http.createServer(async (req, res) => {
       return sendHtml(res, renderTemplate(path.join(PAGES_DIR, PAGES[pathOnly])));
     } catch {
       res.writeHead(404); return res.end('404');
+    }
+  }
+
+  // Obrazek Open Graph produktu: /img/produkt/<id>.svg
+  if (method === 'GET' && pathOnly.startsWith('/img/produkt/') && pathOnly.endsWith('.svg')) {
+    const id = pathOnly.slice('/img/produkt/'.length, -'.svg'.length);
+    const p = PRODUCTS.find((x) => x.id === id);
+    if (!p) { res.writeHead(404); return res.end('404'); }
+    res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
+    return res.end(productOgSvg(p));
+  }
+
+  // Strona produktu: /produkt/<id>
+  if (method === 'GET' && pathOnly.startsWith('/produkt/')) {
+    const id = pathOnly.slice('/produkt/'.length).replace(/\/$/, '');
+    const p = PRODUCTS.find((x) => x.id === id);
+    if (!p) { res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end('<h1>404 — nie znaleziono produktu</h1><a href="/">Wróć do sklepu</a>'); }
+    try {
+      return sendHtml(res, getProductHtml(p));
+    } catch (err) {
+      console.error('Blad renderowania produktu:', err.message);
+      res.writeHead(500); return res.end('500');
     }
   }
 

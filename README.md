@@ -31,11 +31,26 @@ vibe-sklep/
 │   ├── css/styles.css
 │   ├── js/app.js
 │   └── img/favicon.svg
+├── pages/                # osobne podstrony (renderowane z SEO przez serwer)
+│   ├── produkt.html      # szablon strony produktu (/produkt/<id>)
+│   ├── dostawa-zwroty.html
+│   ├── tabela-rozmiarow.html
+│   └── kontakt.html
 └── deploy/
     ├── setup.sh           # instalator na serwer (systemd + firewall)
     ├── vibe-sklep.service # wzorcowy unit systemd
     └── nginx-vibe.conf.example  # opcjonalnie: domena przez nginx
 ```
+
+## SEO
+
+- Jasny, minimalistyczny UI (motyw light).
+- Osobne strony produktów z własnym URL: `/produkt/<id>` (np. `/produkt/bluza-classic`).
+- Dane strukturalne JSON-LD: `Store` + `ItemList` (strona główna), `Product` +
+  `AggregateRating` + `BreadcrumbList` (strony produktów), `Organization` z social media.
+- Per-produktowy obrazek Open Graph generowany na bieżąco: `/img/produkt/<id>.svg`.
+- Katalog renderowany po stronie serwera (linki do produktów widoczne dla robotów bez JS).
+- `/robots.txt` i `/sitemap.xml` (strona główna + podstrony + wszystkie produkty).
 
 ---
 

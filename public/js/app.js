@@ -21,16 +21,14 @@ function saveCart() {
 
 /* Placeholder produktu jako SVG (bez zewnetrznych obrazkow) */
 function productSvg(p) {
-  const initials = p.name.replace(/[^A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż0-9 ]/g, '').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
   const icon = p.category === 'bluza' ? hoodieIcon(p.accent) : tshirtIcon(p.accent);
-  return `<svg viewBox="0 0 320 400" xmlns="http://www.w3.org/2000/svg">
+  return `<svg viewBox="0 0 320 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <defs><linearGradient id="g-${p.id}" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="${p.color}"/>
       <stop offset="1" stop-color="${shade(p.color, -18)}"/>
     </linearGradient></defs>
     <rect width="320" height="400" fill="url(#g-${p.id})"/>
     <g transform="translate(160,180)">${icon}</g>
-    <text x="160" y="350" text-anchor="middle" font-family="Segoe UI, Arial" font-size="26" font-weight="800" fill="${contrast(p.color)}" opacity="0.9">${initials}</text>
   </svg>`;
 }
 function hoodieIcon(c) {
@@ -56,17 +54,24 @@ function shade(hex, pct) {
   r = Math.max(0, Math.min(255, r)); g = Math.max(0, Math.min(255, g)); b = Math.max(0, Math.min(255, b));
   return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
 }
-function contrast(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  const yiq = ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000;
-  return yiq >= 150 ? '#1a1a1a' : '#ffffff';
-}
 
 function toast(msg) {
   const t = $('#toast');
+  if (!t) return;
   t.textContent = msg; t.hidden = false;
   clearTimeout(t._timer);
   t._timer = setTimeout(() => { t.hidden = true; }, 2200);
+}
+
+/* Pseudo-oceny (stabilne na podstawie id) — tylko do prezentacji */
+function rating(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return { score: 4.5 + (h % 5) / 10, count: 40 + (h % 260) };
+}
+function stars(score) {
+  const full = Math.round(score);
+  return '★★★★★'.slice(0, full) + '☆☆☆☆☆'.slice(0, 5 - full);
 }
 
 /* ====== Pobranie produktow ====== */
@@ -74,21 +79,19 @@ async function fetchProducts() {
   try {
     const res = await fetch('/api/products');
     PRODUCTS = await res.json();
-    renderProducts();
   } catch (err) {
-    $('#productGrid').innerHTML = '<div class="loading">Nie udało się pobrać produktów. Odśwież stronę.</div>';
+    if ($('#productGrid')) $('#productGrid').innerHTML = '<div class="loading">Nie udało się pobrać produktów. Odśwież stronę.</div>';
+    return;
   }
+  if ($('#productGrid')) renderProducts();
+  if ($('#relatedGrid')) renderRelated();
 }
 
-/* ====== Render katalogu ====== */
-function renderProducts() {
-  const grid = $('#productGrid');
-  const list = PRODUCTS.filter(p => currentFilter === 'all' || p.category === currentFilter);
-  if (!list.length) { grid.innerHTML = '<div class="loading">Brak produktów.</div>'; return; }
-  grid.innerHTML = list.map((p, i) => {
-    const r = rating(p.id);
-    return `
-    <article class="card" data-id="${p.id}" style="animation-delay:${i * 50}ms">
+/* ====== Karta produktu (link do strony produktu) ====== */
+function cardHtml(p, i) {
+  const r = rating(p.id);
+  return `
+    <a class="card" href="/produkt/${p.id}" data-id="${p.id}" style="animation-delay:${i * 50}ms">
       <div class="card-img">
         ${productSvg(p)}
         <span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>
@@ -102,63 +105,34 @@ function renderProducts() {
         </div>
         <div class="card-foot">
           <span class="price">${money(p.price)}</span>
-          <button class="btn-add" data-quick="${p.id}">Do koszyka</button>
+          <button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button>
         </div>
       </div>
-    </article>`;
-  }).join('');
+    </a>`;
 }
 
-/* Pseudo-oceny (stabilne na podstawie id) — tylko do prezentacji */
-function rating(id) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  const score = 4.5 + (h % 5) / 10;           // 4.5 - 4.9
-  const count = 40 + (h % 260);               // 40 - 299
-  return { score, count };
-}
-function stars(score) {
-  const full = Math.round(score);
-  return '★★★★★'.slice(0, full) + '☆☆☆☆☆'.slice(0, 5 - full);
+function renderProducts() {
+  const grid = $('#productGrid');
+  const list = PRODUCTS.filter(p => currentFilter === 'all' || p.category === currentFilter);
+  if (!list.length) { grid.innerHTML = '<div class="loading">Brak produktów.</div>'; return; }
+  grid.innerHTML = list.map((p, i) => cardHtml(p, i)).join('');
 }
 
-/* ====== Modal produktu ====== */
-let modalSel = { size: null, color: null };
-function openProduct(id) {
-  const p = PRODUCTS.find(x => x.id === id);
-  if (!p) return;
-  modalSel = { size: p.sizes[0], color: p.colors[0] };
-  $('#productModalBody').innerHTML = `
-    <div class="pm-img">${productSvg(p)}</div>
-    <div class="pm-info">
-      <span class="card-tag" style="position:static;display:inline-block;margin-bottom:10px">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>
-      <h3>${p.name}</h3>
-      <div class="pm-rating">${stars(rating(p.id).score)} <span class="muted">${rating(p.id).score.toFixed(1)} · ${rating(p.id).count} opinii</span></div>
-      <span class="price">${money(p.price)}</span>
-      <p class="pm-desc">${p.description}</p>
-      <div class="option-group">
-        <label>Rozmiar</label>
-        <div class="options" id="sizeOpts">
-          ${p.sizes.map((s, i) => `<button class="opt ${i === 0 ? 'selected' : ''}" data-size="${s}">${s}</button>`).join('')}
-        </div>
-      </div>
-      <div class="option-group">
-        <label>Kolor</label>
-        <div class="options" id="colorOpts">
-          ${p.colors.map((c, i) => `<button class="opt ${i === 0 ? 'selected' : ''}" data-color="${c}">${c}</button>`).join('')}
-        </div>
-      </div>
-      <button class="btn btn-primary btn-block" id="addToCartBtn" data-id="${p.id}">Dodaj do koszyka</button>
-    </div>`;
-  $('#productModal').hidden = false;
+function renderRelated() {
+  const grid = $('#relatedGrid');
+  const currentId = document.body.dataset.productId;
+  const current = PRODUCTS.find(p => p.id === currentId);
+  let list = PRODUCTS.filter(p => p.id !== currentId);
+  if (current) list.sort((a, b) => (b.category === current.category) - (a.category === current.category));
+  grid.innerHTML = list.slice(0, 4).map((p, i) => cardHtml(p, i)).join('');
 }
 
 /* ====== Koszyk ====== */
 function addToCart(id, size, color, qty = 1) {
   const p = PRODUCTS.find(x => x.id === id);
   if (!p) return;
-  size = size || p.sizes[0];
-  color = color || p.colors[0];
+  size = p.sizes.includes(size) ? size : p.sizes[0];
+  color = p.colors.includes(color) ? color : p.colors[0];
   const key = `${id}|${size}|${color}`;
   const existing = cart.find(i => i.key === key);
   if (existing) existing.qty += qty;
@@ -181,10 +155,12 @@ function cartTotal() {
   }, 0);
 }
 function renderCartCount() {
-  $('#cartCount').textContent = cart.reduce((s, i) => s + i.qty, 0);
+  const el = $('#cartCount');
+  if (el) el.textContent = cart.reduce((s, i) => s + i.qty, 0);
 }
 function renderCart() {
   const box = $('#cartItems');
+  if (!box) return;
   if (!cart.length) { box.innerHTML = '<div class="cart-empty">Koszyk jest pusty.<br>Dodaj coś z kolekcji 👕</div>'; }
   else {
     box.innerHTML = cart.map(i => {
@@ -206,7 +182,7 @@ function renderCart() {
       </div>`;
     }).join('');
   }
-  $('#cartTotal').textContent = money(cartTotal());
+  const tot = $('#cartTotal'); if (tot) tot.textContent = money(cartTotal());
 }
 
 /* ====== Checkout ====== */
@@ -225,7 +201,6 @@ function checkoutFormHtml() {
 }
 function openCheckout() {
   if (!cart.length) { toast('Koszyk jest pusty'); return; }
-  // Zawsze odbudowujemy formularz (po udanym zamowieniu byl zastapiony ekranem sukcesu)
   $('#checkoutContent').innerHTML = checkoutFormHtml();
   $('#checkoutForm').addEventListener('submit', submitOrder);
   const rows = cart.map(i => {
@@ -233,35 +208,26 @@ function openCheckout() {
     return `<div class="fs-row"><span>${p.name} (${i.size}/${i.color}) ×${i.qty}</span><span>${money(p.price * i.qty)}</span></div>`;
   }).join('');
   $('#formSummary').innerHTML = rows + `<div class="fs-row fs-total"><span>Razem</span><span>${money(cartTotal())}</span></div>`;
-  $('#cartDrawer').hidden = true;
+  if ($('#cartDrawer')) $('#cartDrawer').hidden = true;
   $('#checkoutModal').hidden = false;
 }
-
 async function submitOrder(e) {
   e.preventDefault();
   const form = e.target;
   const err = $('#formError');
   err.hidden = true;
   const payload = {
-    customer: {
-      name: form.name.value,
-      email: form.email.value,
-      phone: form.phone.value,
-      address: form.address.value
-    },
+    customer: { name: form.name.value, email: form.email.value, phone: form.phone.value, address: form.address.value },
     items: cart.map(i => ({ id: i.id, size: i.size, color: i.color, qty: i.qty }))
   };
   const btn = form.querySelector('button[type=submit]');
   btn.disabled = true; btn.textContent = 'Przetwarzanie…';
   try {
     const res = await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Błąd zamówienia');
-    // sukces
     cart = []; saveCart();
     $('#checkoutContent').innerHTML = `
       <div class="success-box">
@@ -278,7 +244,7 @@ async function submitOrder(e) {
   }
 }
 
-/* ====== Zdarzenia ====== */
+/* ====== Filtry (strona glowna) ====== */
 function setFilter(f) {
   currentFilter = f;
   const titles = { all: 'Cała kolekcja', bluza: 'Bluzy', koszulka: 'Koszulki' };
@@ -287,84 +253,94 @@ function setFilter(f) {
     bluza: 'Ciepłe bluzy z kapturem — premium bawełna',
     koszulka: 'Koszulki na co dzień — krój regular i oversize'
   };
-  $('#shopTitle').textContent = titles[f];
+  const t = $('#shopTitle'); if (t) t.textContent = titles[f];
   const sub = $('#shopSub'); if (sub) sub.textContent = subs[f];
   $$('.chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
   $$('.nav-link').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
-  renderProducts();
+  if ($('#productGrid')) renderProducts();
 }
 
+/* ====== Strona produktu: dodanie do koszyka ====== */
+function ppAddToCart(id) {
+  const sizeEl = $('#sizeOpts .opt.selected');
+  const colorEl = $('#colorOpts .opt.selected');
+  addToCart(id, sizeEl && sizeEl.dataset.size, colorEl && colorEl.dataset.color);
+  renderCart();
+  if ($('#cartDrawer')) $('#cartDrawer').hidden = false;
+}
+
+/* ====== Globalny handler klikniec ====== */
 document.addEventListener('click', (e) => {
   const t = e.target;
 
-  // filtry
-  if (t.dataset.filter) { e.preventDefault(); setFilter(t.dataset.filter); window.scrollTo({ top: document.querySelector('#sklep').offsetTop - 70, behavior: 'smooth' }); return; }
+  // szybkie dodanie z karty (nie nawiguj do strony produktu)
+  if (t.dataset && t.dataset.quick) { e.preventDefault(); e.stopPropagation(); addToCart(t.dataset.quick); return; }
 
-  // szybkie dodanie z karty
-  if (t.dataset.quick) { e.stopPropagation(); addToCart(t.dataset.quick); return; }
+  // wybor opcji (rozmiar/kolor) na stronie produktu
+  if (t.classList && t.classList.contains('opt')) {
+    $$('.opt', t.parentElement).forEach(o => o.classList.toggle('selected', o === t));
+    return;
+  }
 
-  // klik w karte -> modal
-  const card = t.closest('.card');
-  if (card && card.dataset.id) { openProduct(card.dataset.id); return; }
+  // dodanie do koszyka ze strony produktu
+  if (t.id === 'ppAdd') { ppAddToCart(t.dataset.id); return; }
 
-  // wybor rozmiaru/koloru w modalu
-  if (t.dataset.size) { modalSel.size = t.dataset.size; $$('#sizeOpts .opt').forEach(o => o.classList.toggle('selected', o === t)); return; }
-  if (t.dataset.color) { modalSel.color = t.dataset.color; $$('#colorOpts .opt').forEach(o => o.classList.toggle('selected', o === t)); return; }
-
-  // dodaj z modalu
-  if (t.id === 'addToCartBtn') { addToCart(t.dataset.id, modalSel.size, modalSel.color); $('#productModal').hidden = true; return; }
+  // filtry (strona glowna). Jesli nie jestesmy na stronie z katalogiem -> przejdz do /
+  if (t.dataset && t.dataset.filter) {
+    if ($('#productGrid')) {
+      e.preventDefault(); setFilter(t.dataset.filter);
+      const sklep = $('#sklep'); if (sklep) window.scrollTo({ top: sklep.offsetTop - 70, behavior: 'smooth' });
+    }
+    return; // na innych stronach link prowadzi do "/"
+  }
 
   // koszyk - operacje
-  if (t.dataset.inc) { changeQty(t.dataset.inc, 1); return; }
-  if (t.dataset.dec) { changeQty(t.dataset.dec, -1); return; }
-  if (t.dataset.rm) { removeFromCart(t.dataset.rm); return; }
+  if (t.dataset && t.dataset.inc) { changeQty(t.dataset.inc, 1); return; }
+  if (t.dataset && t.dataset.dec) { changeQty(t.dataset.dec, -1); return; }
+  if (t.dataset && t.dataset.rm) { removeFromCart(t.dataset.rm); return; }
 
-  // otwarcie/zamkniecie koszyka
-  if (t.closest('#cartBtn')) { renderCart(); $('#cartDrawer').hidden = false; return; }
-  if (t.hasAttribute('data-close-cart') || (t.id === 'cartDrawer')) { $('#cartDrawer').hidden = true; return; }
+  // koszyk - otwarcie / zamkniecie
+  if (t.closest && t.closest('#cartBtn')) { renderCart(); $('#cartDrawer').hidden = false; return; }
+  if (t.hasAttribute && (t.hasAttribute('data-close-cart') || t.id === 'cartDrawer')) { $('#cartDrawer').hidden = true; return; }
 
   // checkout
   if (t.id === 'checkoutBtn') { openCheckout(); return; }
-  if (t.hasAttribute('data-close-checkout') || t.id === 'checkoutModal') { $('#checkoutModal').hidden = true; return; }
+  if (t.hasAttribute && (t.hasAttribute('data-close-checkout') || t.id === 'checkoutModal')) { $('#checkoutModal').hidden = true; return; }
 
-  // zamkniecie modali
-  if (t.hasAttribute('data-close') || t.id === 'productModal') { $('#productModal').hidden = true; return; }
-  if (t.dataset.nav === 'home') { e.preventDefault(); setFilter('all'); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  // logo -> strona glowna z resetem filtra (tylko gdy katalog na stronie)
+  if (t.dataset && t.dataset.nav === 'home' && $('#productGrid')) {
+    e.preventDefault(); setFilter('all'); window.scrollTo({ top: 0, behavior: 'smooth' }); return;
+  }
 });
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    $('#productModal').hidden = true; $('#cartDrawer').hidden = true; $('#checkoutModal').hidden = true;
+    if ($('#cartDrawer')) $('#cartDrawer').hidden = true;
+    if ($('#checkoutModal')) $('#checkoutModal').hidden = true;
   }
 });
 
-/* ====== Hero visual ====== */
+/* ====== Hero visual (strona glowna) ====== */
 function renderHero() {
   const el = $('#heroVisual');
   if (!el) return;
-  el.innerHTML = `<svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#00d2ff"/>
-      </linearGradient>
-    </defs>
-    <circle cx="250" cy="250" r="180" fill="url(#hg)" opacity="0.15"/>
+  el.innerHTML = `<svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b4bff"/><stop offset="1" stop-color="#8f86ff"/>
+    </linearGradient></defs>
+    <circle cx="250" cy="250" r="180" fill="url(#hg)" opacity="0.16"/>
     <circle cx="250" cy="250" r="120" fill="url(#hg)" opacity="0.12"/>
     <g transform="translate(250,250) scale(2.1)" fill="none" stroke="url(#hg)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
-      <path d="M-40 -45 q40 -25 80 0 l38 22 -22 38 -16 -9 v85 h-118 v-85 l-16 9 -22 -38 z" transform="translate(-20,-20)"/>
-      <path d="M-22 -45 q20 28 40 0" transform="translate(-20,-20)"/>
+      <path d="M-60 -65 q40 -25 80 0 l38 22 -22 38 -16 -9 v85 h-118 v-85 l-16 9 -22 -38 z"/>
+      <path d="M-42 -65 q20 28 40 0"/>
     </g>
-    <text x="250" y="470" text-anchor="middle" font-family="Sora, sans-serif" font-size="30" font-weight="800" fill="#ffffff" opacity="0.9">VIBE PREMIUM</text>
+    <text x="250" y="466" text-anchor="middle" font-family="Sora, sans-serif" font-size="28" font-weight="800" fill="#5b4bff" opacity="0.9">VIBE PREMIUM</text>
   </svg>`;
 }
 
 /* ====== Newsletter ====== */
 const nf = $('#newsletterForm');
-if (nf) nf.addEventListener('submit', (e) => {
-  e.preventDefault();
-  e.target.reset();
-  toast('Zapisano! Sprawdź skrzynkę 📩');
-});
+if (nf) nf.addEventListener('submit', (e) => { e.preventDefault(); e.target.reset(); toast('Zapisano! Sprawdź skrzynkę 📩'); });
 
 /* ====== Start ====== */
 renderHero();

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>__P_NAME__ — Vibe</title>
+  <meta name="description" content="__P_DESC__" />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="canonical" href="__SITE_URL__/produkt/__P_ID__" />
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml" />
+
+  <meta property="og:type" content="product" />
+  <meta property="og:site_name" content="Vibe" />
+  <meta property="og:title" content="__P_NAME__ — Vibe" />
+  <meta property="og:description" content="__P_DESC__" />
+  <meta property="og:url" content="__SITE_URL__/produkt/__P_ID__" />
+  <meta property="og:image" content="__SITE_URL__/img/produkt/__P_ID__.svg" />
+  <meta property="product:price:amount" content="__P_PRICE__" />
+  <meta property="product:price:currency" content="PLN" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="__P_NAME__ — Vibe" />
+  <meta name="twitter:image" content="__SITE_URL__/img/produkt/__P_ID__.svg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css?v=5" />
+
+  __JSONLD__
+</head>
+<body data-product-id="__P_ID__">
+  <div class="announce">🚚 Darmowa dostawa od 200 zł &nbsp;·&nbsp; ↩️ 30 dni na zwrot &nbsp;·&nbsp; 🔒 Bezpieczne płatności</div>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="/" class="logo">VIBE<span>.</span></a>
+      <nav class="main-nav">
+        <a href="/" class="nav-link">Wszystko</a>
+        <a href="/#sklep" class="nav-link">Bluzy</a>
+        <a href="/#sklep" class="nav-link">Koszulki</a>
+      </nav>
+      <button class="cart-btn" id="cartBtn" aria-label="Otwórz koszyk">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+        </svg>
+        <span class="cart-count" id="cartCount">0</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container product-page">
+    <nav class="breadcrumb" aria-label="Okruszki">
+      <a href="/">Strona główna</a> / <a href="/#sklep">__P_CAT__</a> / <span>__P_NAME__</span>
+    </nav>
+
+    <div class="product-layout">
+      <div class="product-gallery">__P_IMG__</div>
+
+      <div class="pp-info">
+        <span class="pp-cat">__P_CAT__</span>
+        <h1 class="pp-title">__P_NAME__</h1>
+        <div class="pp-rating">__P_STARS__ <span>__P_SCORE__ · __P_COUNT__ opinii</span></div>
+        <div class="pp-price">__P_PRICE__</div>
+        <p class="pp-desc">__P_DESC__</p>
+
+        <div class="option-group">
+          <label>Rozmiar</label>
+          <div class="options" id="sizeOpts">__P_SIZES__</div>
+        </div>
+        <div class="option-group">
+          <label>Kolor</label>
+          <div class="options" id="colorOpts">__P_COLORS__</div>
+        </div>
+
+        <div class="pp-actions">
+          <button class="btn btn-primary btn-block" id="ppAdd" data-id="__P_ID__">Dodaj do koszyka</button>
+        </div>
+
+        <div class="pp-perks">
+          <div>🚚 Darmowa dostawa od 200 zł</div>
+          <div>↩️ 30 dni na zwrot — <a href="/dostawa-zwroty">zobacz zasady</a></div>
+          <div>📏 Nie wiesz jaki rozmiar? <a href="/tabela-rozmiarow">tabela rozmiarów</a></div>
+        </div>
+      </div>
+    </div>
+
+    <section class="related">
+      <h2>Może Ci się spodobać</h2>
+      <div class="product-grid" id="relatedGrid"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-cols">
+        <div>
+          <div class="logo">VIBE<span>.</span></div>
+          <p class="muted">Streetwear premium. Made for the vibe.</p>
+          <div class="socials"><a href="#" aria-label="Instagram">IG</a><a href="#" aria-label="TikTok">TT</a><a href="#" aria-label="Facebook">FB</a></div>
+        </div>
+        <div><h4>Sklep</h4><a href="/#sklep">Cała kolekcja</a><a href="/">Bluzy</a><a href="/">Koszulki</a></div>
+        <div><h4>Pomoc</h4><a href="/dostawa-zwroty">Dostawa i zwroty</a><a href="/tabela-rozmiarow">Tabela rozmiarów</a><a href="/kontakt">Kontakt</a></div>
+        <div><h4>Kontakt</h4><p class="muted">kontakt@vibe.example<br />pn–pt 9:00–17:00</p></div>
+      </div>
+      <p class="copyright">© 2026 Vibe. Wszystkie prawa zastrzeżone.</p>
+    </div>
+  </footer>
+
+  <!-- Szuflada koszyka -->
+  <div class="drawer-overlay" id="cartDrawer" hidden>
+    <aside class="drawer" role="dialog" aria-modal="true" aria-label="Koszyk">
+      <div class="drawer-head">
+        <h3>Twój koszyk</h3>
+        <button class="modal-close" data-close-cart aria-label="Zamknij koszyk">&times;</button>
+      </div>
+      <div class="drawer-body" id="cartItems"></div>
+      <div class="drawer-foot">
+        <div class="cart-total"><span>Razem</span><strong id="cartTotal">0,00 zł</strong></div>
+        <button class="btn btn-primary btn-block" id="checkoutBtn">Przejdź do zamówienia</button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Modal zamowienia -->
+  <div class="modal-overlay" id="checkoutModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Zamówienie">
+      <button class="modal-close" data-close-checkout aria-label="Zamknij">&times;</button>
+      <div id="checkoutContent"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="/js/app.js?v=5"></script>
+</body>
+</html>
