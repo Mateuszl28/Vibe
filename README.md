@@ -64,6 +64,10 @@ vibe-sklep/
 - **Produkty w bazie:** tabela `products` (zamiast pliku). `products.json` służy tylko jako
   zasiew przy pierwszym uruchomieniu (gdy tabela pusta). Zmiany z panelu admina są od razu
   widoczne w katalogu, na stronach produktów, w `sitemap.xml` i danych strukturalnych.
+- **Magazyn:** każdy produkt ma stan (`stock`). Przy zamówieniu stan jest sprawdzany i zdejmowany;
+  przy 0 produkt jest oznaczony „Wyprzedane" i nie można go kupić. Admin ustawia stan w panelu.
+- **Wyszukiwarka + sortowanie** na stronie głównej (po nazwie; sort: polecane / cena / nazwa),
+  obok filtrów kategorii.
 
 ### Bezpieczeństwo bazy
 

@@ -185,12 +185,12 @@ async function initAdmin() {
     productCache = Array.isArray(r.data) ? r.data : [];
     $('#adminProducts').innerHTML = productCache.length ? `
       <table class="admin-table">
-        <thead><tr><th>Nazwa</th><th>Kat.</th><th>Cena</th><th>Rozmiary</th><th>Bestseller</th><th></th></tr></thead>
+        <thead><tr><th>Nazwa</th><th>Kat.</th><th>Cena</th><th>Stan</th><th>Bestseller</th><th></th></tr></thead>
         <tbody>${productCache.map((p) => `<tr data-id="${esc(p.id)}">
           <td>${esc(p.name)}</td>
           <td>${esc(p.category)}</td>
           <td>${money(p.price)}</td>
-          <td>${esc(p.sizes.join(', '))}</td>
+          <td>${p.stock <= 0 ? '<strong style="color:#e23b4e">0</strong>' : (p.stock <= 5 ? `<strong style="color:#c2410c">${p.stock}</strong>` : p.stock)}</td>
           <td>${p.featured ? '★' : '—'}</td>
           <td><div class="prod-actions"><button class="edit" type="button">Edytuj</button><button class="del" type="button">Usuń</button></div></td>
         </tr>`).join('')}</tbody>
@@ -212,7 +212,7 @@ async function initAdmin() {
     if (e.target.classList.contains('edit')) {
       pForm.editId.value = p.id;
       pForm.name.value = p.name; pForm.category.value = p.category; pForm.price.value = p.price;
-      pForm.featured.value = p.featured ? '1' : '0';
+      pForm.stock.value = p.stock; pForm.featured.value = p.featured ? '1' : '0';
       pForm.colors.value = p.colors.join(', '); pForm.sizes.value = p.sizes.join(', ');
       pForm.color.value = p.color; pForm.accent.value = p.accent; pForm.description.value = p.description;
       $('#prodFormTitle').textContent = 'Edytuj: ' + p.name;
@@ -237,7 +237,7 @@ async function initAdmin() {
     const payload = {
       id: editId || undefined,
       name: pForm.name.value, category: pForm.category.value, price: pForm.price.value,
-      colors: pForm.colors.value, sizes: pForm.sizes.value, color: pForm.color.value,
+      stock: pForm.stock.value, colors: pForm.colors.value, sizes: pForm.sizes.value, color: pForm.color.value,
       accent: pForm.accent.value, description: pForm.description.value, featured: pForm.featured.value === '1'
     };
     const { ok, data } = await api(editId ? '/api/admin/products/update' : '/api/admin/products', {

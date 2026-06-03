@@ -3,6 +3,8 @@
 /* ====== Stan ====== */
 let PRODUCTS = [];
 let currentFilter = 'all';
+let searchQuery = '';
+let sortBy = 'featured';
 let cart = loadCart();
 
 /* ====== Pomocnicze ====== */
@@ -117,12 +119,18 @@ function initToTop() {
 /* ====== Karta produktu (link do strony produktu) ====== */
 function cardHtml(p, i) {
   const r = rating(p.id);
+  const sold = p.stock <= 0;
+  const stockBadge = sold ? '<span class="badge soldout">Wyprzedane</span>'
+    : (p.stock <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
+  const addBtn = sold ? '<button class="btn-add" type="button" disabled>Wyprzedane</button>'
+    : `<button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button>`;
   return `
-    <a class="card" href="/produkt/${p.id}" data-id="${p.id}" style="animation-delay:${i * 50}ms">
+    <a class="card${sold ? ' soldout' : ''}" href="/produkt/${p.id}" data-id="${p.id}" style="animation-delay:${i * 50}ms">
       <div class="card-img">
         ${productSvg(p)}
         <span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>
         ${p.featured ? '<span class="badge hot">Bestseller</span>' : ''}
+        ${stockBadge}
       </div>
       <div class="card-body">
         <div class="card-name">${p.name}</div>
@@ -132,17 +140,35 @@ function cardHtml(p, i) {
         </div>
         <div class="card-foot">
           <span class="price">${money(p.price)}</span>
-          <button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button>
+          ${addBtn}
         </div>
       </div>
     </a>`;
 }
 
+function sortProducts(list, by) {
+  const a = list.slice();
+  if (by === 'price-asc') a.sort((x, y) => x.price - y.price);
+  else if (by === 'price-desc') a.sort((x, y) => y.price - x.price);
+  else if (by === 'name') a.sort((x, y) => x.name.localeCompare(y.name, 'pl'));
+  else a.sort((x, y) => (y.featured ? 1 : 0) - (x.featured ? 1 : 0)); // featured na gore
+  return a;
+}
 function renderProducts() {
   const grid = $('#productGrid');
-  const list = PRODUCTS.filter(p => currentFilter === 'all' || p.category === currentFilter);
-  if (!list.length) { grid.innerHTML = '<div class="loading">Brak produktów.</div>'; return; }
-  grid.innerHTML = list.map((p, i) => cardHtml(p, i)).join('');
+  let list = PRODUCTS.filter(p => currentFilter === 'all' || p.category === currentFilter);
+  const q = searchQuery.trim().toLowerCase();
+  if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || p.category.includes(q));
+  list = sortProducts(list, sortBy);
+  grid.innerHTML = list.length
+    ? list.map((p, i) => cardHtml(p, i)).join('')
+    : `<div class="loading">Brak produktów spełniających kryteria${q ? ` „${q}"` : ''}.</div>`;
+  applyReveal(grid);
+}
+function initShopTools() {
+  const search = $('#searchInput'), sort = $('#sortSelect');
+  if (search) search.addEventListener('input', () => { searchQuery = search.value; renderProducts(); });
+  if (sort) sort.addEventListener('change', () => { sortBy = sort.value; renderProducts(); });
 }
 
 function renderRelated() {
@@ -158,6 +184,7 @@ function renderRelated() {
 function addToCart(id, size, color, qty = 1) {
   const p = PRODUCTS.find(x => x.id === id);
   if (!p) return;
+  if (p.stock <= 0) { toast('Produkt niedostępny'); return; }
   size = p.sizes.includes(size) ? size : p.sizes[0];
   color = p.colors.includes(color) ? color : p.colors[0];
   const key = `${id}|${size}|${color}`;
@@ -395,5 +422,6 @@ renderHero();
 renderCartCount();
 initAccountHeader();
 initToTop();
+initShopTools();
 applyReveal();
 fetchProducts();

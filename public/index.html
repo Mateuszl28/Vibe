@@ -34,7 +34,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/css/styles.css?v=8" />
+  <link rel="stylesheet" href="/css/styles.css?v=9" />
 
   <!-- ===== Dane strukturalne (JSON-LD) — wstrzykiwane przez serwer ===== -->
   __JSONLD__
@@ -113,6 +113,18 @@
         <button class="chip" data-filter="koszulka">Koszulki</button>
       </div>
     </div>
+    <div class="shop-toolbar">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+        <input type="search" id="searchInput" placeholder="Szukaj produktów…" aria-label="Szukaj produktów" />
+      </div>
+      <select id="sortSelect" class="sort-select" aria-label="Sortowanie">
+        <option value="featured">Polecane</option>
+        <option value="price-asc">Cena: od najniższej</option>
+        <option value="price-desc">Cena: od najwyższej</option>
+        <option value="name">Nazwa: A–Z</option>
+      </select>
+    </div>
     <div class="product-grid" id="productGrid">__CATALOG__</div>
   </main>
 
@@ -189,6 +201,6 @@
   <div class="toast" id="toast" hidden></div>
   <button class="to-top" id="toTop" aria-label="Do góry">↑</button>
 
-  <script src="/js/app.js?v=8"></script>
+  <script src="/js/app.js?v=9"></script>
 </body>
 </html>

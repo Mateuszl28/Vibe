@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/styles.css?v=8" />
+  <link rel="stylesheet" href="/css/styles.css?v=9" />
 </head>
 <body data-page="admin">
   <header class="site-header">
@@ -52,6 +52,7 @@
             <select name="category"><option value="bluza">Bluza</option><option value="koszulka">Koszulka</option></select>
           </label>
           <label>Cena (zł)<input name="price" type="number" step="0.01" min="0" required /></label>
+          <label>Stan magazynowy (szt.)<input name="stock" type="number" min="0" step="1" value="25" required /></label>
           <label>Bestseller
             <select name="featured"><option value="0">Nie</option><option value="1">Tak</option></select>
           </label>
@@ -77,6 +78,6 @@
   </div>
 
   <div class="toast" id="toast" hidden></div>
-  <script src="/js/account.js?v=8"></script>
+  <script src="/js/account.js?v=9"></script>
 </body>
 </html>

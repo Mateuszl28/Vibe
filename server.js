@@ -180,13 +180,18 @@ function starsStr(score) {
 // Serwerowo wyrenderowana karta produktu (z linkiem -> SEO)
 function serverCard(p) {
   const r = ratingFor(p.id);
-  return `<a class="card" href="/produkt/${p.id}" data-id="${p.id}">
-    <div class="card-img">${productCardSvg(p)}<span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>${p.featured ? '<span class="badge hot">Bestseller</span>' : ''}</div>
+  const sold = p.stock <= 0;
+  const stockBadge = sold ? '<span class="badge soldout">Wyprzedane</span>'
+    : (p.stock <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
+  const addBtn = sold ? '<button class="btn-add" type="button" disabled>Wyprzedane</button>'
+    : `<button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button>`;
+  return `<a class="card${sold ? ' soldout' : ''}" href="/produkt/${p.id}" data-id="${p.id}">
+    <div class="card-img">${productCardSvg(p)}<span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>${p.featured ? '<span class="badge hot">Bestseller</span>' : ''}${stockBadge}</div>
     <div class="card-body">
       <div class="card-name">${esc(p.name)}</div>
       <div class="card-rating">${starsStr(r.score)} <span>${r.score.toFixed(1)} (${r.count})</span></div>
       <div class="card-colors">${p.colors.map((c) => `<span class="swatch" style="background:${colorHex(c)}" title="${esc(c)}"></span>`).join('')}</div>
-      <div class="card-foot"><span class="price">${moneyPl(p.price)}</span><button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button></div>
+      <div class="card-foot"><span class="price">${moneyPl(p.price)}</span>${addBtn}</div>
     </div>
   </a>`;
 }
@@ -332,7 +337,13 @@ function getProductHtml(p) {
     P_COLORS: colorOpts,
     P_STARS: stars,
     P_SCORE: r.score.toFixed(1),
-    P_COUNT: String(r.count)
+    P_COUNT: String(r.count),
+    P_ADDBTN: p.stock > 0
+      ? `<button class="btn btn-primary btn-block" id="ppAdd" data-id="${esc(p.id)}">Dodaj do koszyka</button>`
+      : '<button class="btn btn-primary btn-block" disabled>Wyprzedane</button>',
+    P_STOCK_NOTE: p.stock > 0
+      ? (p.stock <= 5 ? `<p class="pp-stock low">Zostały ostatnie sztuki: ${p.stock}</p>` : '<p class="pp-stock">✔ Dostępny, wysyłka 48h</p>')
+      : '<p class="pp-stock soldout">Produkt chwilowo niedostępny</p>'
   };
   let html = tpl.replace(/__([A-Z_]+)__/g, (m, key) => (key in repl ? repl[key] : m));
   productCache[p.id] = html;
@@ -438,8 +449,9 @@ function handleCreateOrder(req, res, raw, user) {
   const errors = validateOrder(payload);
   if (errors.length) return sendJson(res, 400, { error: errors.join(' ') });
 
-  // Ceny liczymy PO STRONIE SERWERA na podstawie products.json (nie ufamy klientowi)
+  // Ceny liczymy PO STRONIE SERWERA na podstawie bazy (nie ufamy klientowi)
   const lineItems = [];
+  const needPerProduct = {};
   let total = 0;
   for (const item of payload.items) {
     const product = PRODUCTS.find((p) => p.id === item.id);
@@ -449,7 +461,17 @@ function handleCreateOrder(req, res, raw, user) {
     const color = product.colors.includes(item.color) ? item.color : product.colors[0];
     const lineTotal = product.price * qty;
     total += lineTotal;
+    needPerProduct[product.id] = (needPerProduct[product.id] || 0) + qty;
     lineItems.push({ id: product.id, name: product.name, price: product.price, qty, size, color, lineTotal });
+  }
+
+  // Kontrola stanu magazynowego (swieze dane z bazy)
+  for (const id in needPerProduct) {
+    const fresh = db.getProductById(id);
+    if (!fresh || fresh.stock < needPerProduct[id]) {
+      const name = fresh ? fresh.name : id;
+      return sendJson(res, 409, { error: `Brak wystarczajacej liczby sztuk: ${name} (dostepne: ${fresh ? fresh.stock : 0}).` });
+    }
   }
 
   const order = {
@@ -468,6 +490,8 @@ function handleCreateOrder(req, res, raw, user) {
   };
   try {
     db.createOrder(order);
+    for (const id in needPerProduct) db.decrementStock(id, needPerProduct[id]);
+    refreshProducts(); // zaktualizuj katalog/cache po zdjeciu stanu
   } catch (err) {
     console.error('Blad zapisu zamowienia:', err.message);
     return sendJson(res, 500, { error: 'Nie udalo sie zapisac zamowienia.' });
@@ -555,6 +579,8 @@ function buildProductFromPayload(p) {
   const accent = HEX_RE.test(p.accent) ? p.accent : '#7c5cff';
   const description = String(p.description || '').trim();
   const featured = !!p.featured;
+  let stock = parseInt(p.stock, 10);
+  if (!Number.isFinite(stock) || stock < 0) stock = 0;
   const errors = [];
   if (name.length < 2) errors.push('Podaj nazwe produktu.');
   if (!category) errors.push('Wybierz kategorie (bluza/koszulka).');
@@ -562,7 +588,7 @@ function buildProductFromPayload(p) {
   if (!colors.length) errors.push('Podaj min. 1 kolor.');
   if (!sizes.length) errors.push('Podaj min. 1 rozmiar.');
   if (description.length < 3) errors.push('Podaj opis.');
-  return { errors, product: { name, category, price, colors, sizes, color, accent, description, featured } };
+  return { errors, product: { name, category, price, colors, sizes, color, accent, description, featured, stock } };
 }
 
 // ---- router ----

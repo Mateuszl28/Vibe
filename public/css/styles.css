@@ -425,6 +425,31 @@ a { color: inherit; text-decoration: none; }
 }
 @keyframes toastIn { from { transform: translate(-50%, 20px); opacity: 0; } }
 
+/* ===== Pasek narzedzi sklepu (szukajka + sortowanie) ===== */
+.shop-toolbar { display: flex; gap: 12px; margin: 0 0 24px; flex-wrap: wrap; }
+.search-box { position: relative; flex: 1; min-width: 220px; display: flex; align-items: center; }
+.search-box svg { position: absolute; left: 14px; width: 18px; height: 18px; color: var(--muted); pointer-events: none; }
+.search-box input {
+  width: 100%; padding: 12px 14px 12px 42px; border: 1px solid var(--line-strong); border-radius: 12px;
+  font-family: inherit; font-size: 0.95rem; background: #fff; color: var(--text);
+}
+.search-box input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sort-select {
+  padding: 12px 16px; border: 1px solid var(--line-strong); border-radius: 12px; background: #fff;
+  font-family: inherit; font-size: 0.92rem; cursor: pointer; color: var(--text);
+}
+.sort-select:focus { outline: none; border-color: var(--accent); }
+
+/* ===== Oznaczenia magazynowe ===== */
+.badge.soldout { top: 12px; right: 12px; left: auto; background: var(--dark); color: #fff; }
+.badge.low { top: 12px; right: 12px; left: auto; background: #fff; color: #c2410c; box-shadow: var(--shadow-sm); }
+.card.soldout .card-img svg { filter: grayscale(0.8) opacity(0.65); }
+.card.soldout .btn-add[disabled] { background: var(--card-2); color: var(--muted); cursor: not-allowed; border-color: var(--line); }
+.btn-add[disabled] { cursor: not-allowed; opacity: .7; }
+.pp-stock { font-size: 0.9rem; color: var(--ok); margin: 4px 0 6px; font-weight: 600; }
+.pp-stock.low { color: #c2410c; }
+.pp-stock.soldout { color: var(--danger); }
+
 /* ============================================================
    WOW — animacje i mikrointerakcje (premium feel)
    ============================================================ */
