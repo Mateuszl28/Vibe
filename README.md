@@ -68,6 +68,12 @@ vibe-sklep/
     (klient↔admin) i usuwanie konta** (z zabezpieczeniami: nie można usunąć siebie ani
     ostatniego admina).
   - **Wiadomości** — zgłoszenia z formularza kontaktowego, z możliwością usuwania.
+  - **Kody rabatowe** — tworzenie kodów procentowych/kwotowych, włączanie/wyłączanie, usuwanie;
+    działają w koszyku (walidacja i naliczanie po stronie serwera).
+  - **Ustawienia** — próg darmowej dostawy, koszt dostawy, tekst paska promo, dane kontaktowe
+    (zmiany działają od razu w całym sklepie).
+  - **Szczegóły zamówienia** — notatka wewnętrzna, wydruk (paragon), rozbicie dostawa/rabat.
+  - **Zdjęcia produktów** — upload (PNG/JPG/WebP) w panelu; jeśli brak, używana jest grafika SVG.
   - Admin loguje się **loginem `admin`** + hasłem z konfiguracji (`ADMIN_PASSWORD`).
 - **Produkty w bazie:** tabela `products` (zamiast pliku). `products.json` służy tylko jako
   zasiew przy pierwszym uruchomieniu (gdy tabela pusta). Zmiany z panelu admina są od razu

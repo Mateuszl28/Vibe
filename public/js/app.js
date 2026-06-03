@@ -5,6 +5,8 @@ let PRODUCTS = [];
 let currentFilter = 'all';
 let searchQuery = '';
 let sortBy = 'featured';
+let shopSettings = { freeShippingThreshold: 200, shippingCost: 0 };
+let appliedDiscount = null;
 let cart = loadCart();
 
 /* ====== Pomocnicze ====== */
@@ -124,10 +126,11 @@ function cardHtml(p, i) {
     : (p.stock <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
   const addBtn = sold ? '<button class="btn-add" type="button" disabled>Wyprzedane</button>'
     : `<button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button>`;
+  const media = p.image ? `<img class="card-photo" src="${p.image}" alt="${p.name}" loading="lazy">` : productSvg(p);
   return `
     <a class="card${sold ? ' soldout' : ''}" href="/produkt/${p.id}" data-id="${p.id}" style="animation-delay:${i * 50}ms">
       <div class="card-img">
-        ${productSvg(p)}
+        ${media}
         <span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>
         ${p.featured ? '<span class="badge hot">Bestseller</span>' : ''}
         ${stockBadge}
@@ -250,21 +253,60 @@ function checkoutFormHtml() {
       <label>E-mail<input name="email" type="email" required /></label>
       <label>Telefon<input name="phone" type="tel" /></label>
       <label>Adres dostawy<textarea name="address" required rows="3"></textarea></label>
+      <div class="discount-row">
+        <input type="text" id="discountInput" placeholder="Kod rabatowy" autocomplete="off" />
+        <button type="button" class="btn btn-ghost" id="applyDiscount">Zastosuj</button>
+      </div>
+      <p class="discount-msg" id="discountMsg" hidden></p>
       <div class="form-summary" id="formSummary"></div>
       <p class="form-error" id="formError" hidden></p>
       <button type="submit" class="btn btn-primary btn-block">Zamawiam i płacę</button>
       <p class="muted small">To wersja demo — płatność nie jest pobierana.</p>
     </form>`;
 }
-function openCheckout() {
-  if (!cart.length) { toast('Koszyk jest pusty'); return; }
-  $('#checkoutContent').innerHTML = checkoutFormHtml();
-  $('#checkoutForm').addEventListener('submit', submitOrder);
+function checkoutTotals() {
+  const sub = cartTotal();
+  const shipping = sub >= shopSettings.freeShippingThreshold ? 0 : shopSettings.shippingCost;
+  let discount = 0;
+  if (appliedDiscount) {
+    discount = appliedDiscount.type === 'percent' ? sub * (appliedDiscount.value / 100) : appliedDiscount.value;
+    discount = Math.min(discount, sub);
+  }
+  return { sub, shipping, discount, total: Math.max(0, sub + shipping - discount) };
+}
+function renderCheckoutSummary() {
+  const t = checkoutTotals();
   const rows = cart.map(i => {
     const p = PRODUCTS.find(x => x.id === i.id);
     return `<div class="fs-row"><span>${p.name} (${i.size}/${i.color}) ×${i.qty}</span><span>${money(p.price * i.qty)}</span></div>`;
   }).join('');
-  $('#formSummary').innerHTML = rows + `<div class="fs-row fs-total"><span>Razem</span><span>${money(cartTotal())}</span></div>`;
+  $('#formSummary').innerHTML = rows
+    + `<div class="fs-row"><span>Dostawa</span><span>${t.shipping === 0 ? 'gratis 🎉' : money(t.shipping)}</span></div>`
+    + (t.discount > 0 ? `<div class="fs-row"><span>Rabat ${appliedDiscount.code}</span><span>-${money(t.discount)}</span></div>` : '')
+    + `<div class="fs-row fs-total"><span>Razem</span><span>${money(t.total)}</span></div>`;
+}
+async function applyDiscount() {
+  const code = ($('#discountInput').value || '').trim();
+  const msg = $('#discountMsg');
+  if (!code) { appliedDiscount = null; msg.hidden = true; renderCheckoutSummary(); return; }
+  try {
+    const res = await fetch('/api/discount/validate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, subtotal: cartTotal() })
+    });
+    const data = await res.json();
+    msg.hidden = false;
+    if (res.ok) { appliedDiscount = data; msg.textContent = `Kod ${data.code} zastosowany (−${money(data.amount)})`; msg.style.color = 'var(--ok)'; }
+    else { appliedDiscount = null; msg.textContent = data.error || 'Niepoprawny kod'; msg.style.color = 'var(--danger)'; }
+  } catch { appliedDiscount = null; }
+  renderCheckoutSummary();
+}
+function openCheckout() {
+  if (!cart.length) { toast('Koszyk jest pusty'); return; }
+  appliedDiscount = null;
+  $('#checkoutContent').innerHTML = checkoutFormHtml();
+  $('#checkoutForm').addEventListener('submit', submitOrder);
+  $('#applyDiscount').addEventListener('click', applyDiscount);
+  renderCheckoutSummary();
   if ($('#cartDrawer')) $('#cartDrawer').hidden = true;
   $('#checkoutModal').hidden = false;
 }
@@ -275,7 +317,8 @@ async function submitOrder(e) {
   err.hidden = true;
   const payload = {
     customer: { name: form.name.value, email: form.email.value, phone: form.phone.value, address: form.address.value },
-    items: cart.map(i => ({ id: i.id, size: i.size, color: i.color, qty: i.qty }))
+    items: cart.map(i => ({ id: i.id, size: i.size, color: i.color, qty: i.qty })),
+    discountCode: appliedDiscount ? appliedDiscount.code : ''
   };
   const btn = form.querySelector('button[type=submit]');
   btn.disabled = true; btn.textContent = 'Przetwarzanie…';
@@ -399,6 +442,16 @@ function renderHero() {
 const nf = $('#newsletterForm');
 if (nf) nf.addEventListener('submit', (e) => { e.preventDefault(); e.target.reset(); toast('Zapisano! Sprawdź skrzynkę 📩'); });
 
+/* ====== Ustawienia sklepu (dostawa) ====== */
+async function initSettings() {
+  try {
+    const r = await fetch('/api/settings');
+    const s = await r.json();
+    if (typeof s.freeShippingThreshold === 'number') shopSettings.freeShippingThreshold = s.freeShippingThreshold;
+    if (typeof s.shippingCost === 'number') shopSettings.shippingCost = s.shippingCost;
+  } catch {}
+}
+
 /* ====== Stan konta w naglowku ====== */
 async function initAccountHeader() {
   const btn = $('#accountBtn');
@@ -421,6 +474,7 @@ async function initAccountHeader() {
 renderHero();
 renderCartCount();
 initAccountHeader();
+initSettings();
 initToTop();
 initShopTools();
 applyReveal();

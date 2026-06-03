@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/styles.css?v=12" />
+  <link rel="stylesheet" href="/css/styles.css?v=13" />
 </head>
 <body data-page="admin">
   <header class="site-header">
@@ -28,11 +28,13 @@
 
   <div class="container account-grid">
     <aside class="account-side" id="adminNav">
-      <a href="#" data-sec="dash" class="active">📊 Pulpit</a>
-      <a href="#" data-sec="orders">📦 Zamówienia</a>
-      <a href="#" data-sec="products">🏷️ Produkty</a>
-      <a href="#" data-sec="customers">👥 Klienci</a>
-      <a href="#" data-sec="messages">✉️ Wiadomości</a>
+      <a href="#" data-sec="dash" class="active">Pulpit</a>
+      <a href="#" data-sec="orders">Zamówienia</a>
+      <a href="#" data-sec="products">Produkty</a>
+      <a href="#" data-sec="discounts">Kody rabatowe</a>
+      <a href="#" data-sec="customers">Klienci</a>
+      <a href="#" data-sec="messages">Wiadomości</a>
+      <a href="#" data-sec="settings">Ustawienia</a>
     </aside>
 
     <div>
@@ -103,6 +105,14 @@
               <label>Kolor grafiki (hex)<input name="accent" value="#7c5cff" /></label>
             </div>
             <label>Opis<textarea name="description" rows="2" required minlength="3"></textarea></label>
+            <div class="img-uploader">
+              <div class="preview" id="imgPreview"><div class="ph">Brak zdjęcia</div></div>
+              <div>
+                <input type="file" id="imgFile" accept="image/png,image/jpeg,image/webp" />
+                <p class="muted small">PNG/JPG/WebP, max 4 MB. Zdjęcie zapisuje się dla <strong>edytowanego</strong> produktu (najpierw zapisz nowy produkt, potem dodaj zdjęcie przez „Edytuj").</p>
+                <button type="button" class="btn btn-ghost" id="imgRemove" hidden style="padding:6px 12px;margin-top:6px">Usuń zdjęcie</button>
+              </div>
+            </div>
             <p class="form-error" id="prodError" hidden></p>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button type="submit" class="btn btn-primary" id="prodSubmit">Dodaj produkt</button>
@@ -113,6 +123,28 @@
         <div class="panel-card">
           <h2>Lista produktów</h2>
           <div id="adminProducts"><p class="muted">Ładowanie…</p></div>
+        </div>
+      </section>
+
+      <!-- KODY RABATOWE -->
+      <section data-panel="discounts" hidden>
+        <div class="panel-card">
+          <h2>Dodaj kod rabatowy</h2>
+          <form id="discountForm" class="checkout-form" style="margin-bottom:16px">
+            <div class="prod-grid">
+              <label>Kod<input name="code" required placeholder="VIBE10" /></label>
+              <label>Typ
+                <select name="type"><option value="percent">Procentowy (%)</option><option value="amount">Kwotowy (zł)</option></select>
+              </label>
+              <label>Wartość<input name="value" type="number" min="0" step="0.01" required /></label>
+            </div>
+            <p class="form-error" id="discountErr" hidden></p>
+            <button class="btn btn-primary" type="submit">Dodaj kod</button>
+          </form>
+        </div>
+        <div class="panel-card">
+          <h2>Aktywne kody</h2>
+          <div id="adminDiscounts"><p class="muted">Ładowanie…</p></div>
         </div>
       </section>
 
@@ -134,10 +166,28 @@
           <div id="adminMessages"><p class="muted">Ładowanie…</p></div>
         </div>
       </section>
+
+      <!-- USTAWIENIA -->
+      <section data-panel="settings" hidden>
+        <div class="panel-card">
+          <h2>Ustawienia sklepu</h2>
+          <form id="settingsForm" class="checkout-form">
+            <div class="prod-grid">
+              <label>Próg darmowej dostawy (zł)<input name="free_shipping_threshold" type="number" min="0" step="0.01" /></label>
+              <label>Koszt dostawy (zł)<input name="shipping_cost" type="number" min="0" step="0.01" /></label>
+              <label>E-mail kontaktowy<input name="contact_email" type="email" /></label>
+              <label>Telefon kontaktowy<input name="contact_phone" /></label>
+            </div>
+            <label>Tekst paska promo (na górze stron)<input name="announce_text" /></label>
+            <p class="form-error" id="settingsErr" hidden></p>
+            <button class="btn btn-primary" type="submit">Zapisz ustawienia</button>
+          </form>
+        </div>
+      </section>
     </div>
   </div>
 
   <div class="toast" id="toast" hidden></div>
-  <script src="/js/account.js?v=12"></script>
+  <script src="/js/account.js?v=13"></script>
 </body>
 </html>

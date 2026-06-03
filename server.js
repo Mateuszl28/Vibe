@@ -47,6 +47,19 @@ function loadProducts() {
 db.seedProductsIfEmpty(loadProducts());
 let PRODUCTS = db.getAllProducts();
 
+// Domyslne ustawienia sklepu (edytowalne z panelu admina)
+db.seedSettings({
+  free_shipping_threshold: '200',
+  shipping_cost: '14.99',
+  announce_text: '🚚 Darmowa dostawa od 200 zł  ·  ↩️ 30 dni na zwrot  ·  🔒 Bezpieczne płatności',
+  contact_email: 'kontakt@vibe.example',
+  contact_phone: '+48 600 000 000'
+});
+
+// Katalog na wgrane zdjecia produktow (serwowany jako statyczny z /uploads)
+const UPLOADS_DIR = path.join(PUBLIC_DIR, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
 // Bazowy adres witryny (do SEO: canonical, OG, sitemap). Ustaw przez SITE_URL.
 const SITE_URL = (process.env.SITE_URL || `http://85.215.197.199:${PORT}`).replace(/\/$/, '');
 
@@ -185,8 +198,9 @@ function serverCard(p) {
     : (p.stock <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
   const addBtn = sold ? '<button class="btn-add" type="button" disabled>Wyprzedane</button>'
     : `<button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button>`;
+  const media = p.image ? `<img class="card-photo" src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">` : productCardSvg(p);
   return `<a class="card${sold ? ' soldout' : ''}" href="/produkt/${p.id}" data-id="${p.id}">
-    <div class="card-img">${productCardSvg(p)}<span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>${p.featured ? '<span class="badge hot">Bestseller</span>' : ''}${stockBadge}</div>
+    <div class="card-img">${media}<span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>${p.featured ? '<span class="badge hot">Bestseller</span>' : ''}${stockBadge}</div>
     <div class="card-body">
       <div class="card-name">${esc(p.name)}</div>
       <div class="card-rating">${starsStr(r.score)} <span>${r.score.toFixed(1)} (${r.count})</span></div>
@@ -245,6 +259,7 @@ function renderTemplate(absPath) {
   if (renderCache[absPath]) return renderCache[absPath];
   let html = fs.readFileSync(absPath, 'utf8');
   html = html.replace(/__SITE_URL__/g, SITE_URL);
+  if (html.includes('__ANNOUNCE__')) html = html.replace(/__ANNOUNCE__/g, esc(db.getSettings().announce_text || ''));
   if (html.includes('__JSONLD__')) html = html.replace('__JSONLD__', buildJsonLd());
   if (html.includes('__CATALOG__')) html = html.replace('__CATALOG__', buildCatalogHtml());
   renderCache[absPath] = html;
@@ -284,7 +299,7 @@ function buildProductJsonLd(p) {
     '@type': 'Product',
     name: p.name,
     description: p.description,
-    image: SITE_URL + '/img/produkt/' + p.id + '.svg',
+    image: p.image ? SITE_URL + p.image : SITE_URL + '/img/produkt/' + p.id + '.svg',
     category: p.category === 'bluza' ? 'Bluzy' : 'Koszulki',
     brand: { '@type': 'Brand', name: 'Vibe' },
     color: p.colors.join(', '),
@@ -326,13 +341,15 @@ function getProductHtml(p) {
   const stars = '★★★★★'.slice(0, Math.round(r.score)) + '☆☆☆☆☆'.slice(0, 5 - Math.round(r.score));
   const repl = {
     SITE_URL,
+    ANNOUNCE: esc(db.getSettings().announce_text || ''),
     JSONLD: buildProductJsonLd(p),
     P_ID: esc(p.id),
     P_NAME: esc(p.name),
     P_DESC: esc(p.description),
     P_CAT: esc(catLabel),
     P_PRICE: p.price.toFixed(2).replace('.', ',') + ' zł',
-    P_IMG: productTileSvg(p),
+    P_IMG: p.image ? `<img class="gallery-photo" src="${esc(p.image)}" alt="${esc(p.name)}">` : productTileSvg(p),
+    P_OGIMG: p.image ? SITE_URL + p.image : SITE_URL + '/img/produkt/' + p.id + '.svg',
     P_SIZES: sizeOpts,
     P_COLORS: colorOpts,
     P_STARS: stars,
@@ -354,11 +371,15 @@ function sendHtml(res, html) {
   res.end(html);
 }
 
-// Przeladowanie produktow z bazy + uniewaznienie cache stron (po zmianach admina)
-function refreshProducts() {
-  PRODUCTS = db.getAllProducts();
+// Uniewaznienie cache stron (po zmianach admina: produkty, ustawienia)
+function clearPageCache() {
   for (const k in renderCache) delete renderCache[k];
   for (const k in productCache) delete productCache[k];
+}
+// Przeladowanie produktow z bazy + czyszczenie cache
+function refreshProducts() {
+  PRODUCTS = db.getAllProducts();
+  clearPageCache();
 }
 
 const ROBOTS_TXT = `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
@@ -474,6 +495,24 @@ function handleCreateOrder(req, res, raw, user) {
     }
   }
 
+  // Dostawa i rabat liczone PO STRONIE SERWERA (na podstawie ustawien i bazy kodow)
+  const settings = db.getSettings();
+  const threshold = parseFloat(settings.free_shipping_threshold) || 0;
+  const shipCost = parseFloat(settings.shipping_cost) || 0;
+  const shipping = total >= threshold ? 0 : shipCost;
+
+  let discount = 0;
+  let discountCode = '';
+  if (payload.discountCode) {
+    const d = db.getDiscount(payload.discountCode);
+    if (d && d.active) {
+      discount = d.type === 'percent' ? total * (d.value / 100) : d.value;
+      discount = Math.min(discount, total); // nie wiecej niz wartosc produktow
+      discountCode = d.code;
+    }
+  }
+  const grandTotal = Math.max(0, total + shipping - discount);
+
   const order = {
     id: 'VIBE-' + String(1001 + db.countOrders()),
     user_id: user ? user.id : null,
@@ -485,7 +524,10 @@ function handleCreateOrder(req, res, raw, user) {
       address: String(payload.customer.address).trim()
     },
     items: lineItems,
-    total: Math.round(total * 100) / 100,
+    shipping: Math.round(shipping * 100) / 100,
+    discount: Math.round(discount * 100) / 100,
+    discountCode,
+    total: Math.round(grandTotal * 100) / 100,
     status: 'nowe'
   };
   try {
@@ -687,6 +729,24 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { error: err.message });
       }
     }
+    if (method === 'GET' && url === '/api/settings') {
+      const s = db.getSettings();
+      return sendJson(res, 200, {
+        freeShippingThreshold: parseFloat(s.free_shipping_threshold) || 0,
+        shippingCost: parseFloat(s.shipping_cost) || 0
+      });
+    }
+    if (method === 'POST' && url === '/api/discount/validate') {
+      try {
+        const p = JSON.parse(await readBody(req) || '{}');
+        const d = db.getDiscount(p.code);
+        if (!d || !d.active) return sendJson(res, 404, { error: 'Niepoprawny lub nieaktywny kod.' });
+        const sub = Math.max(0, parseFloat(p.subtotal) || 0);
+        let amount = d.type === 'percent' ? sub * (d.value / 100) : d.value;
+        amount = Math.min(amount, sub);
+        return sendJson(res, 200, { code: d.code, type: d.type, value: d.value, amount: Math.round(amount * 100) / 100 });
+      } catch (err) { return sendJson(res, 400, { error: err.message }); }
+    }
 
     // --- Uwierzytelnianie ---
     if (method === 'POST' && url === '/api/auth/register') {
@@ -807,6 +867,84 @@ const server = http.createServer(async (req, res) => {
           const ok = db.deleteProduct(String(p.id || ''));
           if (ok) refreshProducts();
           return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Nie znaleziono produktu.' });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      // Ustawienia sklepu
+      if (method === 'GET' && url === '/api/admin/settings') {
+        return sendJson(res, 200, { settings: db.getSettings() });
+      }
+      if (method === 'POST' && url === '/api/admin/settings') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const allowed = ['free_shipping_threshold', 'shipping_cost', 'announce_text', 'contact_email', 'contact_phone'];
+          for (const k of allowed) if (k in p) db.setSetting(k, p[k]);
+          clearPageCache();
+          return sendJson(res, 200, { ok: true, settings: db.getSettings() });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      // Kody rabatowe
+      if (method === 'GET' && url === '/api/admin/discounts') {
+        return sendJson(res, 200, { discounts: db.getDiscounts() });
+      }
+      if (method === 'POST' && url === '/api/admin/discounts') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const code = String(p.code || '').trim();
+          const type = p.type === 'amount' ? 'amount' : 'percent';
+          const value = parseFloat(p.value);
+          if (code.length < 2 || !(value > 0)) return sendJson(res, 400, { error: 'Podaj kod i wartosc > 0.' });
+          if (type === 'percent' && value > 100) return sendJson(res, 400, { error: 'Procent maksymalnie 100.' });
+          if (db.getDiscount(code)) return sendJson(res, 409, { error: 'Taki kod juz istnieje.' });
+          db.createDiscount({ code, type, value, active: true });
+          return sendJson(res, 201, { ok: true });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      if (method === 'POST' && url === '/api/admin/discounts/toggle') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const d = db.getDiscount(p.code);
+          if (!d) return sendJson(res, 404, { error: 'Nie ma takiego kodu.' });
+          db.setDiscountActive(p.code, !d.active);
+          return sendJson(res, 200, { ok: true, active: !d.active });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      if (method === 'POST' && url === '/api/admin/discounts/delete') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const ok = db.deleteDiscount(p.code);
+          return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Nie ma takiego kodu.' });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      // Notatka do zamowienia
+      if (method === 'POST' && url === '/api/admin/order-note') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const ok = db.setOrderNote(String(p.id || ''), String(p.note || ''));
+          return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Nie ma zamowienia.' });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      // Upload / usuniecie zdjecia produktu
+      if (method === 'POST' && url === '/api/admin/products/image') {
+        try {
+          const p = JSON.parse(await readBody(req, 7e6) || '{}');
+          const prod = db.getProductById(String(p.id || ''));
+          if (!prod) return sendJson(res, 404, { error: 'Nie ma takiego produktu.' });
+          if (p.remove) {
+            for (const e of ['png', 'jpg', 'webp']) { try { fs.unlinkSync(path.join(UPLOADS_DIR, prod.id + '.' + e)); } catch {} }
+            db.setProductImage(prod.id, null);
+            refreshProducts();
+            return sendJson(res, 200, { ok: true, image: null });
+          }
+          const m = /^data:image\/(png|jpe?g|webp);base64,(.+)$/i.exec(p.image || '');
+          if (!m) return sendJson(res, 400, { error: 'Nieobslugiwany format (png/jpg/webp).' });
+          const ext = m[1].toLowerCase() === 'jpeg' ? 'jpg' : m[1].toLowerCase();
+          const buf = Buffer.from(m[2], 'base64');
+          if (buf.length > 4 * 1024 * 1024) return sendJson(res, 400, { error: 'Zdjecie za duze (max 4 MB).' });
+          for (const e of ['png', 'jpg', 'webp']) { try { fs.unlinkSync(path.join(UPLOADS_DIR, prod.id + '.' + e)); } catch {} }
+          fs.writeFileSync(path.join(UPLOADS_DIR, prod.id + '.' + ext), buf);
+          db.setProductImage(prod.id, '/uploads/' + prod.id + '.' + ext);
+          refreshProducts();
+          return sendJson(res, 201, { ok: true, image: '/uploads/' + prod.id + '.' + ext });
         } catch (err) { return sendJson(res, 400, { error: err.message }); }
       }
       return sendJson(res, 404, { error: 'Nieznany endpoint admina.' });

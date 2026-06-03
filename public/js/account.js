@@ -92,12 +92,20 @@ function orderCard(o, admin) {
       <span class="oid">${esc(o.id)}</span>
       <span class="muted">${esc(date)}</span>
     </div>
-    ${admin ? `<div class="muted" style="font-size:.85rem;margin-bottom:8px">${esc(o.customer.name)} · ${esc(o.customer.email)} · ${esc(o.customer.address)}</div>` : ''}
+    ${admin ? `<div class="muted" style="font-size:.85rem;margin-bottom:8px">${esc(o.customer.name)} · ${esc(o.customer.email)} · ${esc(o.customer.phone || '—')} · ${esc(o.customer.address)}</div>` : ''}
     <div class="order-items">${items}</div>
+    ${(o.shipping || o.discount) ? `<div class="muted" style="font-size:.83rem;margin-top:6px">Dostawa: ${o.shipping ? money(o.shipping) : 'gratis'}${o.discount ? ` · Rabat ${esc(o.discountCode || '')}: -${money(o.discount)}` : ''}</div>` : ''}
     <div class="order-foot">
       <strong>${money(o.total)}</strong>
       ${statusCtrl}
     </div>
+    ${admin ? `<div class="order-note">
+      <textarea data-note="${esc(o.id)}" rows="2" placeholder="Notatka wewnętrzna…">${esc(o.note || '')}</textarea>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn btn-ghost" data-savenote="${esc(o.id)}" type="button" style="padding:6px 12px">Zapisz notatkę</button>
+        <button class="btn btn-ghost" data-print="${esc(o.id)}" type="button" style="padding:6px 12px">Drukuj</button>
+      </div>
+    </div>` : ''}
   </div>`;
 }
 
@@ -234,6 +242,37 @@ async function initAdmin() {
     toast('Wyeksportowano CSV');
   });
 
+  // Notatka do zamówienia + druk
+  function printOrder(o) {
+    const items = o.items.map((i) => `<tr><td>${esc(i.name)} (${esc(i.size)}/${esc(i.color)})</td><td>${i.qty}</td><td>${money(i.lineTotal)}</td></tr>`).join('');
+    const w = window.open('', '_blank');
+    if (!w) { toast('Pozwól na wyskakujące okna, by drukować'); return; }
+    w.document.write(`<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8"><title>${esc(o.id)}</title>
+      <style>body{font-family:Arial,sans-serif;padding:30px;color:#16181d}h1{margin:0}table{width:100%;border-collapse:collapse;margin:16px 0}td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left}.r{text-align:right}.tot{font-size:1.2rem;font-weight:700}</style></head><body>
+      <h1>VIBE — zamówienie ${esc(o.id)}</h1>
+      <p>${esc(new Date(o.createdAt).toLocaleString('pl-PL'))} · status: ${esc(o.status)}</p>
+      <p><strong>${esc(o.customer.name)}</strong><br>${esc(o.customer.email)} · ${esc(o.customer.phone || '')}<br>${esc(o.customer.address)}</p>
+      <table><thead><tr><th>Produkt</th><th>Ilość</th><th>Kwota</th></tr></thead><tbody>${items}</tbody></table>
+      <p>Dostawa: ${o.shipping ? money(o.shipping) : 'gratis'}${o.discount ? ` · Rabat ${esc(o.discountCode || '')}: -${money(o.discount)}` : ''}</p>
+      <p class="tot">Razem: ${money(o.total)}</p>
+      ${o.note ? `<p><em>Notatka: ${esc(o.note)}</em></p>` : ''}
+      <script>window.onload=function(){window.print()}<\/script></body></html>`);
+    w.document.close();
+  }
+  $('#adminOrders').addEventListener('click', async (e) => {
+    const saveId = e.target.dataset.savenote;
+    const printId = e.target.dataset.print;
+    if (saveId) {
+      const ta = document.querySelector(`textarea[data-note="${saveId}"]`);
+      const { ok, data } = await api('/api/admin/order-note', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: saveId, note: ta.value })
+      });
+      if (ok) { const o = orders.find((x) => x.id === saveId); if (o) o.note = ta.value; toast('Zapisano notatkę'); }
+      else toast(data.error || 'Błąd');
+    }
+    if (printId) { const o = orders.find((x) => x.id === printId); if (o) printOrder(o); }
+  });
+
   // ----- KLIENCI / UŻYTKOWNICY -----
   const adminId = me.data.user.id;
   function renderCustomers() {
@@ -332,6 +371,7 @@ async function initAdmin() {
     $('#prodFormTitle').textContent = 'Dodaj produkt';
     $('#prodSubmit').textContent = 'Dodaj produkt';
     $('#prodCancel').hidden = true; $('#prodError').hidden = true;
+    setPreview(null); $('#imgFile').value = '';
   }
   $('#prodCancel').addEventListener('click', resetProductForm);
   $('#adminProducts').addEventListener('click', async (e) => {
@@ -347,6 +387,7 @@ async function initAdmin() {
       $('#prodFormTitle').textContent = 'Edytuj: ' + p.name;
       $('#prodSubmit').textContent = 'Zapisz zmiany';
       $('#prodCancel').hidden = false; $('#prodError').hidden = true;
+      setPreview(p.image ? p.image + '?t=' + Date.now() : null);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     if (e.target.classList.contains('del')) {
@@ -375,10 +416,99 @@ async function initAdmin() {
     else { err.textContent = data.error || 'Błąd zapisu'; err.hidden = false; }
   });
 
+  // ----- Zdjecie produktu -----
+  const imgFile = $('#imgFile'), imgRemove = $('#imgRemove');
+  function setPreview(src) {
+    $('#imgPreview').innerHTML = src ? `<img src="${src}" alt="">` : '<div class="ph">Brak zdjęcia</div>';
+    imgRemove.hidden = !src;
+  }
+  imgFile.addEventListener('change', async () => {
+    const id = pForm.editId.value;
+    if (!id) { toast('Najpierw zapisz produkt, potem dodaj zdjęcie (Edytuj).'); imgFile.value = ''; return; }
+    const f = imgFile.files[0]; if (!f) return;
+    if (f.size > 4 * 1024 * 1024) { toast('Zdjęcie za duże (max 4 MB).'); imgFile.value = ''; return; }
+    const dataUrl = await new Promise((resv) => { const r = new FileReader(); r.onload = () => resv(r.result); r.readAsDataURL(f); });
+    const { ok, data } = await api('/api/admin/products/image', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, image: dataUrl })
+    });
+    if (ok) { setPreview(data.image + '?t=' + Date.now()); toast('Dodano zdjęcie'); loadAdminProducts(); }
+    else toast(data.error || 'Błąd zdjęcia');
+    imgFile.value = '';
+  });
+  imgRemove.addEventListener('click', async () => {
+    const id = pForm.editId.value; if (!id) return;
+    const { ok } = await api('/api/admin/products/image', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, remove: true })
+    });
+    if (ok) { setPreview(null); toast('Usunięto zdjęcie'); loadAdminProducts(); }
+  });
+
+  // ----- KODY RABATOWE -----
+  async function loadDiscounts() {
+    const r = await api('/api/admin/discounts');
+    const list = (r.data.discounts) || [];
+    $('#adminDiscounts').innerHTML = list.length ? `
+      <table class="admin-table">
+        <thead><tr><th>Kod</th><th>Rabat</th><th>Status</th><th></th></tr></thead>
+        <tbody>${list.map((d) => `<tr data-code="${esc(d.code)}">
+          <td><strong>${esc(d.code)}</strong></td>
+          <td>${d.type === 'percent' ? d.value + '%' : money(d.value)}</td>
+          <td><span class="discount-badge ${d.active ? 'on' : 'off'}">${d.active ? 'aktywny' : 'wyłączony'}</span></td>
+          <td><div class="prod-actions"><button class="toggle" type="button">${d.active ? 'Wyłącz' : 'Włącz'}</button><button class="del" type="button">Usuń</button></div></td>
+        </tr>`).join('')}</tbody>
+      </table>` : '<p class="muted">Brak kodów.</p>';
+  }
+  $('#discountForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target; const err = $('#discountErr'); err.hidden = true;
+    const { ok, data } = await api('/api/admin/discounts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: f.code.value, type: f.type.value, value: f.value.value })
+    });
+    if (ok) { toast('Dodano kod'); f.reset(); loadDiscounts(); }
+    else { err.textContent = data.error || 'Błąd'; err.hidden = false; }
+  });
+  $('#adminDiscounts').addEventListener('click', async (e) => {
+    const tr = e.target.closest('tr'); if (!tr) return;
+    const code = tr.dataset.code;
+    if (e.target.classList.contains('toggle')) {
+      const { ok } = await api('/api/admin/discounts/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+      if (ok) loadDiscounts();
+    }
+    if (e.target.classList.contains('del')) {
+      if (!confirm(`Usunąć kod ${code}?`)) return;
+      const { ok } = await api('/api/admin/discounts/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+      if (ok) { toast('Usunięto kod'); loadDiscounts(); }
+    }
+  });
+
+  // ----- USTAWIENIA -----
+  async function loadSettings() {
+    const r = await api('/api/admin/settings');
+    const s = (r.data.settings) || {};
+    const f = $('#settingsForm');
+    ['free_shipping_threshold', 'shipping_cost', 'announce_text', 'contact_email', 'contact_phone'].forEach((k) => {
+      if (f[k] != null && s[k] != null) f[k].value = s[k];
+    });
+  }
+  $('#settingsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target; const err = $('#settingsErr'); err.hidden = true;
+    const payload = {
+      free_shipping_threshold: f.free_shipping_threshold.value, shipping_cost: f.shipping_cost.value,
+      announce_text: f.announce_text.value, contact_email: f.contact_email.value, contact_phone: f.contact_phone.value
+    };
+    const { ok, data } = await api('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (ok) toast('Zapisano ustawienia');
+    else { err.textContent = data.error || 'Błąd'; err.hidden = false; }
+  });
+
   // ----- Start -----
   renderOrders();
   renderCustomers();
   renderMessages();
+  loadDiscounts();
+  loadSettings();
   await loadAdminProducts(); // ustawia products i wywoluje renderDash()
 }
 

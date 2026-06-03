@@ -456,6 +456,27 @@ a { color: inherit; text-decoration: none; }
 }
 .sort-select:focus { outline: none; border-color: var(--accent); }
 
+/* ===== Zdjecia produktow ===== */
+.card-photo { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .45s; }
+.card:hover .card-photo { transform: scale(1.05); }
+.gallery-photo { width: 100%; display: block; }
+
+/* ===== Kod rabatowy w kasie ===== */
+.discount-row { display: flex; gap: 8px; }
+.discount-row input { flex: 1; background: #fff; border: 1px solid var(--line-strong); color: var(--text); padding: 11px 13px; border-radius: 10px; font-family: inherit; font-size: 0.92rem; }
+.discount-row input:focus { outline: none; border-color: var(--accent); }
+.discount-row .btn { padding: 10px 18px; }
+.discount-msg { font-size: 0.85rem; margin: 2px 0; font-weight: 600; }
+
+/* ===== Admin: zdjecie produktu, kody, ustawienia ===== */
+.img-uploader { display: flex; gap: 14px; align-items: center; margin: 10px 0; }
+.img-uploader .preview { width: 84px; height: 104px; border-radius: 10px; overflow: hidden; background: var(--card-2); border: 1px solid var(--line); flex-shrink: 0; }
+.img-uploader .preview img { width: 100%; height: 100%; object-fit: cover; }
+.img-uploader .preview .ph { display: grid; place-items: center; height: 100%; color: var(--muted); font-size: 0.75rem; text-align: center; }
+.discount-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+.discount-badge.on { background: #ecfdf5; color: #047857; }
+.discount-badge.off { background: #fef2f2; color: #b91c1c; }
+
 /* ===== Oznaczenia magazynowe ===== */
 .badge.soldout { top: 12px; right: 12px; left: auto; background: var(--dark); color: #fff; }
 .badge.low { top: 12px; right: 12px; left: auto; background: #fff; color: #c2410c; box-shadow: var(--shadow-sm); }
