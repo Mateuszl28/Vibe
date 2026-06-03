@@ -425,6 +425,86 @@ a { color: inherit; text-decoration: none; }
 }
 @keyframes toastIn { from { transform: translate(-50%, 20px); opacity: 0; } }
 
+/* ============================================================
+   WOW — animacje i mikrointerakcje (premium feel)
+   ============================================================ */
+
+/* Aurora w hero (delikatne, ruchome plamy swiatla) */
+.hero { position: relative; overflow: hidden; }
+.hero::before, .hero::after {
+  content: ''; position: absolute; border-radius: 50%; filter: blur(70px); z-index: 0; pointer-events: none;
+}
+.hero::before { width: 460px; height: 460px; background: radial-gradient(circle, rgba(124,92,255,.45), transparent 70%); top: -140px; right: -60px; animation: floatA 16s ease-in-out infinite; }
+.hero::after { width: 400px; height: 400px; background: radial-gradient(circle, rgba(0,179,255,.35), transparent 70%); bottom: -160px; left: -80px; animation: floatB 20s ease-in-out infinite; }
+.hero .container { position: relative; z-index: 1; }
+@keyframes floatA { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-34px,28px) scale(1.08); } }
+@keyframes floatB { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,-24px) scale(1.12); } }
+
+/* Animowany gradient w slowie "vibe" */
+.hero .accent {
+  background: linear-gradient(90deg, #5b4bff, #00b3ff, #9b5cff, #5b4bff);
+  background-size: 300% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  animation: shimmer 6s linear infinite;
+}
+@keyframes shimmer { to { background-position: 300% 0; } }
+
+/* Hero visual unosi sie + delikatny obrot przy hover */
+.hero-visual { animation: bob 6s ease-in-out infinite; transition: transform .4s; }
+.hero-visual:hover { transform: rotate(-2deg) scale(1.02); }
+@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+
+/* Pasek marquee */
+.marquee { overflow: hidden; background: var(--dark); color: #fff; }
+.marquee-track { display: flex; gap: 44px; white-space: nowrap; width: max-content; padding: 14px 0;
+  font-family: 'Sora', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; font-size: .9rem;
+  animation: marquee 24s linear infinite; }
+.marquee:hover .marquee-track { animation-play-state: paused; }
+.marquee-track span { opacity: .9; padding-right: 44px; }
+.marquee-track b { color: var(--accent-2); margin: 0 6px; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+/* Reveal przy scrollu (klasy dodaje JS, wiec bez JS tresc jest normalnie widoczna) */
+.reveal { opacity: 0; transform: translateY(26px); transition: opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); }
+.reveal.is-visible { opacity: 1; transform: none; }
+
+/* Polysk przesuwajacy sie po przyciskach primary */
+.btn-primary { position: relative; overflow: hidden; }
+.btn-primary::after {
+  content: ''; position: absolute; top: 0; left: -130%; width: 60%; height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255,255,255,.4), transparent);
+  transform: skewX(-20deg); transition: left .6s ease;
+}
+.btn-primary:hover::after { left: 150%; }
+
+/* Polysk na zdjeciu karty przy hover */
+.card-img::after {
+  content: ''; position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(120deg, transparent 38%, rgba(255,255,255,.35) 50%, transparent 62%);
+  transform: translateX(-110%); transition: transform .7s ease; pointer-events: none;
+}
+.card:hover .card-img::after { transform: translateX(110%); }
+
+/* Pulsujacy licznik koszyka po dodaniu */
+.cart-count.pop { animation: cartpop .45s ease; }
+@keyframes cartpop { 0% { transform: scale(1); } 40% { transform: scale(1.6); } 100% { transform: scale(1); } }
+
+/* Przycisk powrotu na gore */
+.to-top {
+  position: fixed; right: 22px; bottom: 22px; width: 48px; height: 48px; border-radius: 50%;
+  background: var(--dark); color: #fff; border: none; cursor: pointer; display: grid; place-items: center;
+  opacity: 0; transform: translateY(20px); pointer-events: none; transition: opacity .3s, transform .3s, background .2s;
+  z-index: 60; box-shadow: var(--shadow-lg);
+}
+.to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+.to-top:hover { background: var(--accent); }
+
+/* Szanuj ustawienie ograniczonego ruchu */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
+  .reveal { opacity: 1 !important; transform: none !important; }
+}
+
 /* ===== Responsywnosc ===== */
 @media (max-width: 900px) {
   .hero-grid { grid-template-columns: 1fr; }

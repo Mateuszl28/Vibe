@@ -85,6 +85,33 @@ async function fetchProducts() {
   }
   if ($('#productGrid')) renderProducts();
   if ($('#relatedGrid')) renderRelated();
+  applyReveal();
+}
+
+/* ====== WOW: odslanianie przy scrollu ====== */
+const revealObserver = ('IntersectionObserver' in window)
+  ? new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add('is-visible'); revealObserver.unobserve(e.target); }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' })
+  : null;
+function applyReveal(scope = document) {
+  if (!revealObserver) return;
+  const sel = '.feature, .card, .info-card, .newsletter-box, .related h2, .product-gallery, .pp-info';
+  $$(sel, scope).filter((el) => !el.classList.contains('reveal')).forEach((el, i) => {
+    el.classList.add('reveal');
+    el.style.transitionDelay = ((i % 6) * 70) + 'ms';
+    revealObserver.observe(el);
+  });
+}
+
+/* ====== WOW: przycisk powrotu na gore ====== */
+function initToTop() {
+  const btn = $('#toTop');
+  if (!btn) return;
+  window.addEventListener('scroll', () => { btn.classList.toggle('show', window.scrollY > 400); }, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 }
 
 /* ====== Karta produktu (link do strony produktu) ====== */
@@ -138,6 +165,9 @@ function addToCart(id, size, color, qty = 1) {
   if (existing) existing.qty += qty;
   else cart.push({ key, id, size, color, qty });
   saveCart();
+  // mikrointerakcja: "pop" licznika koszyka
+  const cc = $('#cartCount');
+  if (cc) { cc.classList.remove('pop'); void cc.offsetWidth; cc.classList.add('pop'); }
   toast(`Dodano: ${p.name}`);
 }
 function removeFromCart(key) { cart = cart.filter(i => i.key !== key); saveCart(); renderCart(); }
@@ -364,4 +394,6 @@ async function initAccountHeader() {
 renderHero();
 renderCartCount();
 initAccountHeader();
+initToTop();
+applyReveal();
 fetchProducts();
