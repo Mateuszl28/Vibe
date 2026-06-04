@@ -65,7 +65,10 @@ vibe-sklep/
   - **Pulpit** — KPI (obrót, zamówienia, nowe, klienci), wykres sprzedaży 7 dni, ostatnie
     zamówienia, alerty niskich stanów, **bestsellery** (najczęściej kupowane).
   - **Zamówienia** — filtr po statusie + wyszukiwarka, zmiana statusu, dane klienta,
-    **eksport do CSV**.
+    **eksport do CSV** oraz **eksport kurierski** (CSV z ustrukturyzowanym adresem:
+    ulica, kod pocztowy, miasto, kwota pobrania, uwagi — do importu w InPost/DPD/DHL;
+    respektuje aktywny filtr statusu). Adres zamówienia jest zbierany w kasie w polach
+    ulica/kod/miasto, więc nadaje się do importu kurierskiego.
   - **Produkty** — dodawanie / edycja / usuwanie, stany magazynowe.
   - **Klienci** — lista z liczbą zamówień i wydaną kwotą, wyszukiwarka, **zmiana roli
     (klient↔admin) i usuwanie konta** (z zabezpieczeniami: nie można usunąć siebie ani

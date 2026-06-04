@@ -467,7 +467,9 @@ function validateOrder(payload) {
   const c = payload && payload.customer ? payload.customer : {};
   if (!c.name || String(c.name).trim().length < 2) errors.push('Podaj imie i nazwisko.');
   if (!c.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(c.email))) errors.push('Podaj poprawny e-mail.');
-  if (!c.address || String(c.address).trim().length < 3) errors.push('Podaj adres dostawy.');
+  if (!c.street || String(c.street).trim().length < 3) errors.push('Podaj ulice i numer.');
+  if (!c.postalCode || !/^\d{2}-\d{3}$/.test(String(c.postalCode).trim())) errors.push('Podaj kod pocztowy (format 00-000).');
+  if (!c.city || String(c.city).trim().length < 2) errors.push('Podaj miasto.');
   if (!Array.isArray(payload.items) || payload.items.length === 0) errors.push('Koszyk jest pusty.');
   return errors;
 }
@@ -529,12 +531,19 @@ function handleCreateOrder(req, res, raw, user) {
     id: 'VIBE-' + String(1001 + db.countOrders()),
     user_id: user ? user.id : null,
     createdAt: new Date().toISOString(),
-    customer: {
-      name: String(payload.customer.name).trim(),
-      email: String(payload.customer.email).trim(),
-      phone: payload.customer.phone ? String(payload.customer.phone).trim() : '',
-      address: String(payload.customer.address).trim()
-    },
+    customer: (() => {
+      const c = payload.customer;
+      const street = String(c.street).trim();
+      const postalCode = String(c.postalCode).trim();
+      const city = String(c.city).trim();
+      return {
+        name: String(c.name).trim(),
+        email: String(c.email).trim(),
+        phone: c.phone ? String(c.phone).trim() : '',
+        street, postalCode, city,
+        address: `${street}, ${postalCode} ${city}`
+      };
+    })(),
     items: lineItems,
     shipping: Math.round(shipping * 100) / 100,
     discount: Math.round(discount * 100) / 100,

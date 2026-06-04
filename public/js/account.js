@@ -201,12 +201,16 @@ async function initAdmin() {
   }
 
   // ----- ZAMÓWIENIA -----
-  function renderOrders() {
+  function getFilteredOrders() {
     const q = ($('#orderSearch').value || '').trim().toLowerCase();
     const st = $('#orderStatusFilter').value;
     let list = orders.slice();
     if (st) list = list.filter((o) => o.status === st);
     if (q) list = list.filter((o) => o.id.toLowerCase().includes(q) || o.customer.email.toLowerCase().includes(q) || o.customer.name.toLowerCase().includes(q));
+    return list;
+  }
+  function renderOrders() {
+    const list = getFilteredOrders();
     $('#adminOrders').innerHTML = list.length ? list.map((o) => orderCard(o, true)).join('') : '<p class="muted">Brak zamówień dla kryteriów.</p>';
   }
   $('#orderSearch').addEventListener('input', renderOrders);
@@ -222,24 +226,41 @@ async function initAdmin() {
     else toast(data.error || 'Błąd zmiany statusu');
   });
 
-  // Eksport zamówień do CSV
+  // Eksport CSV (uniwersalny + kurierski)
   const csvCell = (s) => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
-  $('#exportOrders').addEventListener('click', () => {
-    if (!orders.length) { toast('Brak zamówień do eksportu'); return; }
-    const rows = [['Nr', 'Data', 'Status', 'Klient', 'E-mail', 'Telefon', 'Adres', 'Produkty', 'Suma (zł)']];
-    orders.forEach((o) => {
-      const items = o.items.map((i) => `${i.name} ${i.size}/${i.color} x${i.qty}`).join('; ');
-      rows.push([o.id, new Date(o.createdAt).toLocaleString('pl-PL'), o.status, o.customer.name,
-        o.customer.email, o.customer.phone || '', o.customer.address, items, o.total.toFixed(2)]);
-    });
+  function downloadCsv(rows, filename) {
     const csv = rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'zamowienia-vibe.csv';
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+  $('#exportOrders').addEventListener('click', () => {
+    const list = getFilteredOrders();
+    if (!list.length) { toast('Brak zamówień do eksportu'); return; }
+    const rows = [['Nr', 'Data', 'Status', 'Klient', 'E-mail', 'Telefon', 'Adres', 'Produkty', 'Suma (zł)']];
+    list.forEach((o) => {
+      const items = o.items.map((i) => `${i.name} ${i.size}/${i.color} x${i.qty}`).join('; ');
+      rows.push([o.id, new Date(o.createdAt).toLocaleString('pl-PL'), o.status, o.customer.name,
+        o.customer.email, o.customer.phone || '', o.customer.address, items, o.total.toFixed(2)]);
+    });
+    downloadCsv(rows, 'zamowienia-vibe.csv');
     toast('Wyeksportowano CSV');
+  });
+  // Eksport kurierski — kolumny gotowe do mapowania w narzedziach kurierow (InPost/DPD/DHL)
+  $('#exportCourier').addEventListener('click', () => {
+    const list = getFilteredOrders();
+    if (!list.length) { toast('Brak zamówień do eksportu'); return; }
+    const rows = [['Imię i nazwisko', 'Telefon', 'E-mail', 'Ulica i nr', 'Kod pocztowy', 'Miasto', 'Kraj', 'Adres (pełny)', 'Nr zamówienia', 'Kwota pobrania (zł)', 'Waga (kg)', 'Uwagi']];
+    list.forEach((o) => {
+      const c = o.customer;
+      rows.push([c.name, c.phone || '', c.email, c.street || '', c.postalCode || '', c.city || '', 'PL',
+        c.address, o.id, o.total.toFixed(2), '', o.note || '']);
+    });
+    downloadCsv(rows, 'kurier-vibe.csv');
+    toast('Wyeksportowano plik kurierski');
   });
 
   // Notatka do zamówienia + druk

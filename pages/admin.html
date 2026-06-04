@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/styles.css?v=14" />
+  <link rel="stylesheet" href="/css/styles.css?v=15" />
 </head>
 <body data-page="admin">
   <header class="site-header">
@@ -76,7 +76,8 @@
                 <option value="zrealizowane">Zrealizowane</option>
                 <option value="anulowane">Anulowane</option>
               </select>
-              <button class="btn btn-ghost" id="exportOrders" type="button" style="padding:9px 16px">⬇ Eksport CSV</button>
+              <button class="btn btn-ghost" id="exportOrders" type="button" style="padding:9px 16px">⬇ CSV</button>
+              <button class="btn btn-primary" id="exportCourier" type="button" style="padding:9px 16px">⬇ Eksport kurierski</button>
             </div>
           </div>
           <div id="adminOrders"><p class="muted">Ładowanie…</p></div>
@@ -188,6 +189,6 @@
   </div>
 
   <div class="toast" id="toast" hidden></div>
-  <script src="/js/account.js?v=14"></script>
+  <script src="/js/account.js?v=15"></script>
 </body>
 </html>

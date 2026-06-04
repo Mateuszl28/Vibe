@@ -250,8 +250,12 @@ function checkoutFormHtml() {
     <form id="checkoutForm" class="checkout-form">
       <label>Imię i nazwisko<input name="name" required minlength="2" /></label>
       <label>E-mail<input name="email" type="email" required /></label>
-      <label>Telefon<input name="phone" type="tel" /></label>
-      <label>Adres dostawy<textarea name="address" required rows="3"></textarea></label>
+      <label>Telefon<input name="phone" type="tel" required /></label>
+      <label>Ulica i numer<input name="street" required /></label>
+      <div class="addr-row">
+        <label>Kod pocztowy<input name="postalCode" required placeholder="00-000" /></label>
+        <label>Miasto<input name="city" required /></label>
+      </div>
       <div class="discount-row">
         <input type="text" id="discountInput" placeholder="Kod rabatowy" autocomplete="off" />
         <button type="button" class="btn btn-ghost" id="applyDiscount">Zastosuj</button>
@@ -315,7 +319,10 @@ async function submitOrder(e) {
   const err = $('#formError');
   err.hidden = true;
   const payload = {
-    customer: { name: form.name.value, email: form.email.value, phone: form.phone.value, address: form.address.value },
+    customer: {
+      name: form.name.value, email: form.email.value, phone: form.phone.value,
+      street: form.street.value, postalCode: form.postalCode.value, city: form.city.value
+    },
     items: cart.map(i => ({ id: i.id, size: i.size, color: i.color, qty: i.qty })),
     discountCode: appliedDiscount ? appliedDiscount.code : ''
   };
