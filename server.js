@@ -68,6 +68,22 @@ function applyRatings(list) {
 }
 applyRatings(PRODUCTS);
 
+// Stan magazynowy z uwzglednieniem wariantow (per rozmiar/kolor)
+function variantKey(size, color) { return `${size}||${color}`; }
+function availableStock(p) {
+  if (p.variants && Object.keys(p.variants).length) {
+    return Object.values(p.variants).reduce((s, v) => s + (parseInt(v, 10) || 0), 0);
+  }
+  return p.stock;
+}
+function variantStock(p, size, color) {
+  if (p.variants && Object.keys(p.variants).length) {
+    const k = variantKey(size, color);
+    return k in p.variants ? (parseInt(p.variants[k], 10) || 0) : 0;
+  }
+  return p.stock;
+}
+
 // Bazowy adres witryny (do SEO: canonical, OG, sitemap). Ustaw przez SITE_URL.
 const SITE_URL = (process.env.SITE_URL || `http://85.215.197.199:${PORT}`).replace(/\/$/, '');
 
@@ -204,9 +220,10 @@ function serverCard(p) {
   const ratingHtml = rt.count > 0
     ? `<div class="card-rating">${starsStr(rt.avg)} <span>${rt.avg.toFixed(1)} (${rt.count})</span></div>`
     : '';
-  const sold = p.stock <= 0;
+  const avail = availableStock(p);
+  const sold = avail <= 0;
   const stockBadge = sold ? '<span class="badge soldout">Wyprzedane</span>'
-    : (p.stock <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
+    : (avail <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
   const addBtn = sold ? '<button class="btn-add" type="button" disabled>Wyprzedane</button>'
     : `<button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button>`;
   const media = p.image ? `<img class="card-photo" src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">` : productCardSvg(p);
@@ -302,7 +319,9 @@ const APP_PAGES = {
   '/logowanie': 'auth.html',
   '/rejestracja': 'auth.html',
   '/konto': 'konto.html',
-  '/admin': 'admin.html'
+  '/admin': 'admin.html',
+  '/ulubione': 'ulubione.html',
+  '/koszyk': 'koszyk.html'
 };
 
 function starsHtml(avg) {
@@ -377,12 +396,12 @@ function getProductHtml(p) {
     P_SIZES: sizeOpts,
     P_COLORS: colorOpts,
     P_RATING: ratingHtml,
-    P_ADDBTN: p.stock > 0
+    P_ADDBTN: availableStock(p) > 0
       ? `<button class="btn btn-primary btn-block" id="ppAdd" data-id="${esc(p.id)}">Dodaj do koszyka</button>`
-      : '<button class="btn btn-primary btn-block" disabled>Wyprzedane</button>',
-    P_STOCK_NOTE: p.stock > 0
-      ? (p.stock <= 5 ? `<p class="pp-stock low">Zostały ostatnie sztuki: ${p.stock}</p>` : '<p class="pp-stock">✔ Dostępny, wysyłka 48h</p>')
-      : '<p class="pp-stock soldout">Produkt chwilowo niedostępny</p>'
+      : '<button class="btn btn-primary btn-block" id="ppAdd" data-id="' + esc(p.id) + '" disabled>Wyprzedane</button>',
+    P_STOCK_NOTE: availableStock(p) > 0
+      ? (availableStock(p) <= 5 ? `<p class="pp-stock low" id="ppStock">Zostały ostatnie sztuki: ${availableStock(p)}</p>` : '<p class="pp-stock" id="ppStock">✔ Dostępny, wysyłka 48h</p>')
+      : '<p class="pp-stock soldout" id="ppStock">Produkt chwilowo niedostępny</p>'
   };
   let html = tpl.replace(/__([A-Z_]+)__/g, (m, key) => (key in repl ? repl[key] : m));
   html = html.replace('</body>', COOKIE_HTML + '</body>');
@@ -497,7 +516,7 @@ function handleCreateOrder(req, res, raw, user) {
 
   // Ceny liczymy PO STRONIE SERWERA na podstawie bazy (nie ufamy klientowi)
   const lineItems = [];
-  const needPerProduct = {};
+  const needPerProduct = {}; // id -> { total, variants: { key: qty } }
   let total = 0;
   for (const item of payload.items) {
     const product = PRODUCTS.find((p) => p.id === item.id);
@@ -507,16 +526,27 @@ function handleCreateOrder(req, res, raw, user) {
     const color = product.colors.includes(item.color) ? item.color : product.colors[0];
     const lineTotal = product.price * qty;
     total += lineTotal;
-    needPerProduct[product.id] = (needPerProduct[product.id] || 0) + qty;
+    if (!needPerProduct[product.id]) needPerProduct[product.id] = { total: 0, variants: {} };
+    needPerProduct[product.id].total += qty;
+    const vk = variantKey(size, color);
+    needPerProduct[product.id].variants[vk] = (needPerProduct[product.id].variants[vk] || 0) + qty;
     lineItems.push({ id: product.id, name: product.name, price: product.price, qty, size, color, lineTotal });
   }
 
-  // Kontrola stanu magazynowego (swieze dane z bazy)
+  // Kontrola stanu magazynowego (swieze dane z bazy, per wariant gdy zdefiniowane)
   for (const id in needPerProduct) {
     const fresh = db.getProductById(id);
-    if (!fresh || fresh.stock < needPerProduct[id]) {
-      const name = fresh ? fresh.name : id;
-      return sendJson(res, 409, { error: `Brak wystarczajacej liczby sztuk: ${name} (dostepne: ${fresh ? fresh.stock : 0}).` });
+    if (!fresh) return sendJson(res, 409, { error: `Nieznany produkt: ${id}` });
+    const need = needPerProduct[id];
+    if (fresh.variants && Object.keys(fresh.variants).length) {
+      for (const vk in need.variants) {
+        const have = parseInt(fresh.variants[vk], 10) || 0;
+        if (have < need.variants[vk]) {
+          return sendJson(res, 409, { error: `Brak wystarczajacej liczby sztuk: ${fresh.name} (wariant ${vk.replace('||', '/')}, dostepne: ${have}).` });
+        }
+      }
+    } else if (fresh.stock < need.total) {
+      return sendJson(res, 409, { error: `Brak wystarczajacej liczby sztuk: ${fresh.name} (dostepne: ${fresh.stock}).` });
     }
   }
 
@@ -564,7 +594,17 @@ function handleCreateOrder(req, res, raw, user) {
   };
   try {
     db.createOrder(order);
-    for (const id in needPerProduct) db.decrementStock(id, needPerProduct[id]);
+    for (const id in needPerProduct) {
+      const fresh = db.getProductById(id);
+      const need = needPerProduct[id];
+      if (fresh.variants && Object.keys(fresh.variants).length) {
+        const v = { ...fresh.variants };
+        for (const vk in need.variants) v[vk] = Math.max(0, (parseInt(v[vk], 10) || 0) - need.variants[vk]);
+        db.setVariants(id, v);
+      } else {
+        db.decrementStock(id, need.total);
+      }
+    }
     refreshProducts(); // zaktualizuj katalog/cache po zdjeciu stanu
   } catch (err) {
     console.error('Blad zapisu zamowienia:', err.message);
@@ -1044,6 +1084,44 @@ const server = http.createServer(async (req, res) => {
           refreshProducts();
           return sendJson(res, 201, { ok: true, image: '/uploads/' + prod.id + '.' + ext });
         } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      // Moderacja opinii
+      if (method === 'GET' && url === '/api/admin/reviews') {
+        return sendJson(res, 200, { reviews: db.getAllReviews() });
+      }
+      if (method === 'POST' && url === '/api/admin/reviews/delete') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const ok = db.deleteReview(String(p.productId || ''), parseInt(p.userId, 10));
+          if (ok) refreshProducts();
+          return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Nie ma takiej opinii.' });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      // Stany wariantow (per rozmiar/kolor)
+      if (method === 'POST' && url === '/api/admin/products/variants') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const prod = db.getProductById(String(p.id || ''));
+          if (!prod) return sendJson(res, 404, { error: 'Nie ma takiego produktu.' });
+          let variants = null;
+          if (p.variants && typeof p.variants === 'object') {
+            variants = {};
+            for (const k in p.variants) { const n = parseInt(p.variants[k], 10); if (Number.isFinite(n) && n >= 0) variants[k] = n; }
+            if (!Object.keys(variants).length) variants = null;
+          }
+          db.setVariants(prod.id, variants);
+          refreshProducts();
+          return sendJson(res, 200, { ok: true });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      // Backup bazy (pobranie pliku vibe.db)
+      if (method === 'GET' && url === '/api/admin/backup') {
+        try {
+          db.checkpoint();
+          const buf = fs.readFileSync(path.join(DATA_DIR, 'vibe.db'));
+          res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="vibe-backup.db"' });
+          return res.end(buf);
+        } catch (err) { return sendJson(res, 500, { error: 'Backup nieudany: ' + err.message }); }
       }
       return sendJson(res, 404, { error: 'Nieznany endpoint admina.' });
     }

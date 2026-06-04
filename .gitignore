@@ -11,6 +11,8 @@ data/vibe.db-wal
 data/vibe.db-journal
 # Wgrane zdjecia produktow (runtime) - nie do repo
 public/uploads/
+# Kopie zapasowe bazy
+backups/
 
 # Logi
 *.log

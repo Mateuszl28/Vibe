@@ -427,7 +427,42 @@ async function initAdmin() {
     $('#prodSubmit').textContent = 'Dodaj produkt';
     $('#prodCancel').hidden = true; $('#prodError').hidden = true;
     setPreview(null); $('#imgFile').value = '';
+    $('#variantsPanel').hidden = true; editingProduct = null;
   }
+
+  // ----- Edytor wariantów (stan per rozmiar/kolor) -----
+  let editingProduct = null;
+  function renderVariantsEditor(p) {
+    editingProduct = p;
+    const v = p.variants || {};
+    $('#variantsBox').innerHTML = `
+      <table class="admin-table" style="margin-top:8px">
+        <thead><tr><th>Rozmiar \\ Kolor</th>${p.colors.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+        <tbody>${p.sizes.map((s) => `<tr><td><strong>${esc(s)}</strong></td>${p.colors.map((c) => {
+          const k = `${s}||${c}`;
+          return `<td><input type="number" min="0" step="1" class="mini-input" style="width:80px" data-vk="${esc(k)}" value="${v[k] != null ? v[k] : ''}" placeholder="—" /></td>`;
+        }).join('')}</tr>`).join('')}</tbody>
+      </table>`;
+    $('#variantsPanel').hidden = false;
+  }
+  async function saveVariants(variantsOrNull) {
+    if (!editingProduct) return;
+    const { ok, data } = await api('/api/admin/products/variants', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingProduct.id, variants: variantsOrNull })
+    });
+    toast(ok ? 'Zapisano stany wariantów' : (data.error || 'Błąd'));
+    if (ok) loadAdminProducts();
+  }
+  $('#saveVariants').addEventListener('click', () => {
+    const variants = {};
+    $$('#variantsBox input[data-vk]').forEach((inp) => {
+      const val = inp.value.trim();
+      if (val !== '') { const n = parseInt(val, 10); if (Number.isFinite(n) && n >= 0) variants[inp.dataset.vk] = n; }
+    });
+    saveVariants(Object.keys(variants).length ? variants : null);
+  });
+  $('#clearVariants').addEventListener('click', () => { if (confirm('Wyłączyć warianty i używać ogólnego stanu?')) saveVariants(null); });
   $('#prodCancel').addEventListener('click', resetProductForm);
   $('#adminProducts').addEventListener('click', async (e) => {
     const tr = e.target.closest('tr'); if (!tr) return;
@@ -443,6 +478,7 @@ async function initAdmin() {
       $('#prodSubmit').textContent = 'Zapisz zmiany';
       $('#prodCancel').hidden = false; $('#prodError').hidden = true;
       setPreview(p.image ? p.image + '?t=' + Date.now() : null);
+      renderVariantsEditor(p);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     if (e.target.classList.contains('del')) {
@@ -558,12 +594,38 @@ async function initAdmin() {
     else { err.textContent = data.error || 'Błąd'; err.hidden = false; }
   });
 
+  // ----- MODERACJA OPINII -----
+  async function loadAdminReviews() {
+    const r = await api('/api/admin/reviews');
+    const list = (r.data.reviews) || [];
+    $('#adminReviews').innerHTML = list.length ? list.map((rv) => `
+      <div class="review" data-pid="${esc(rv.productId)}" data-uid="${rv.userId}">
+        <div class="review-top"><strong>${esc(rv.name)}</strong>
+          <span class="stars" style="color:#f5a623">${'★'.repeat(rv.rating)}${'☆'.repeat(5 - rv.rating)}</span>
+          <span class="muted" style="margin-left:auto;font-size:.8rem">${esc(rv.productName)} · ${new Date(rv.createdAt).toLocaleDateString('pl-PL')}</span></div>
+        ${rv.comment ? `<p>${esc(rv.comment)}</p>` : ''}
+        <button class="btn btn-ghost rev-del" type="button" style="padding:5px 12px;margin-top:8px">Usuń opinię</button>
+      </div>`).join('') : '<p class="muted">Brak opinii.</p>';
+  }
+  $('#adminReviews').addEventListener('click', async (e) => {
+    if (!e.target.classList.contains('rev-del')) return;
+    const card = e.target.closest('[data-pid]');
+    if (!confirm('Usunąć tę opinię?')) return;
+    const { ok, data } = await api('/api/admin/reviews/delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId: card.dataset.pid, userId: parseInt(card.dataset.uid, 10) })
+    });
+    toast(ok ? 'Usunięto opinię' : (data.error || 'Błąd'));
+    if (ok) loadAdminReviews();
+  });
+
   // ----- Start -----
   renderOrders();
   renderCustomers();
   renderMessages();
   loadDiscounts();
   loadSettings();
+  loadAdminReviews();
   await loadAdminProducts(); // ustawia products i wywoluje renderDash()
 }
 

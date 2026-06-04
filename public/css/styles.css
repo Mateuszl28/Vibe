@@ -492,8 +492,22 @@ a { color: inherit; text-decoration: none; }
 .discount-badge.off { background: #fef2f2; color: #b91c1c; }
 
 /* ===== Oznaczenia magazynowe ===== */
-.badge.soldout { top: 12px; right: 12px; left: auto; background: var(--dark); color: #fff; }
-.badge.low { top: 12px; right: 12px; left: auto; background: #fff; color: #c2410c; box-shadow: var(--shadow-sm); }
+.badge.soldout { top: auto; bottom: 12px; right: 12px; left: auto; background: var(--dark); color: #fff; }
+.badge.low { top: auto; bottom: 12px; right: 12px; left: auto; background: #fff; color: #c2410c; box-shadow: var(--shadow-sm); }
+
+/* Serce — lista życzeń na karcie */
+.wish-btn {
+  position: absolute; top: 12px; right: 12px; z-index: 3; width: 36px; height: 36px; border-radius: 50%;
+  border: none; background: rgba(255,255,255,.92); backdrop-filter: blur(4px); color: #c9ccd3;
+  font-size: 1.05rem; cursor: pointer; box-shadow: var(--shadow-sm); transition: transform .15s, color .2s; line-height: 1;
+}
+.wish-btn:hover { color: var(--danger); transform: scale(1.12); }
+.wish-btn.on { color: var(--danger); }
+
+/* Strona koszyka */
+.cart-page-grid { display: grid; grid-template-columns: 1fr 320px; gap: 28px; align-items: start; }
+.cart-page-grid .cart-item { background: #fff; }
+@media (max-width: 760px) { .cart-page-grid { grid-template-columns: 1fr; } }
 .card.soldout .card-img svg { filter: grayscale(0.8) opacity(0.65); }
 .card.soldout .btn-add[disabled] { background: var(--card-2); color: var(--muted); cursor: not-allowed; border-color: var(--line); }
 .btn-add[disabled] { cursor: not-allowed; opacity: .7; }

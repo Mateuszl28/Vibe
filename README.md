@@ -77,6 +77,7 @@ vibe-sklep/
     (klient↔admin) i usuwanie konta** (z zabezpieczeniami: nie można usunąć siebie ani
     ostatniego admina).
   - **Wiadomości** — zgłoszenia z formularza kontaktowego, z możliwością usuwania.
+  - **Opinie** — moderacja: podgląd i usuwanie opinii klientów.
   - **Kody rabatowe** — tworzenie kodów procentowych/kwotowych, włączanie/wyłączanie, usuwanie;
     działają w koszyku (walidacja i naliczanie po stronie serwera).
   - **Ustawienia** — próg darmowej dostawy, koszt dostawy, tekst paska promo, dane kontaktowe
@@ -89,6 +90,10 @@ vibe-sklep/
   widoczne w katalogu, na stronach produktów, w `sitemap.xml` i danych strukturalnych.
 - **Magazyn:** każdy produkt ma stan (`stock`). Przy zamówieniu stan jest sprawdzany i zdejmowany;
   przy 0 produkt jest oznaczony „Wyprzedane" i nie można go kupić. Admin ustawia stan w panelu.
+- **Warianty z osobnym stanem:** opcjonalnie magazyn liczony per kombinacja rozmiar/kolor
+  (edytor siatki w panelu admina). Dostępność i blokada zakupu działają per wariant.
+- **Lista życzeń** (♥, localStorage) + strona `/ulubione`; dedykowana strona koszyka `/koszyk`.
+- **Backup bazy:** przycisk w panelu (pobranie `vibe.db`) oraz skrypt `deploy/backup.sh` do crona.
 - **Wyszukiwarka + sortowanie** na stronie głównej (po nazwie; sort: polecane / cena / nazwa),
   obok filtrów kategorii.
 

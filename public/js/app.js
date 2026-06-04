@@ -22,6 +22,34 @@ function loadCart() {
 function saveCart() {
   localStorage.setItem('vibe_cart', JSON.stringify(cart));
   renderCartCount();
+  if (document.body.dataset.page === 'cart') initCartPage();
+}
+
+/* ====== Lista życzeń (localStorage) ====== */
+let wishlist = loadWishlist();
+function loadWishlist() { try { return JSON.parse(localStorage.getItem('vibe_wishlist')) || []; } catch { return []; } }
+function saveWishlist() { localStorage.setItem('vibe_wishlist', JSON.stringify(wishlist)); renderWishCount(); }
+function inWishlist(id) { return wishlist.includes(id); }
+function toggleWishlist(id) {
+  if (inWishlist(id)) wishlist = wishlist.filter((x) => x !== id);
+  else wishlist.push(id);
+  saveWishlist();
+}
+function renderWishCount() { $$('#wishCount').forEach((el) => { el.textContent = wishlist.length; }); }
+
+/* Dostępność z uwzględnieniem wariantów (po stronie klienta) */
+function clientVariantStock(p, size, color) {
+  if (p.variants && Object.keys(p.variants).length) {
+    const k = `${size}||${color}`;
+    return k in p.variants ? (parseInt(p.variants[k], 10) || 0) : 0;
+  }
+  return p.stock;
+}
+function clientAvailable(p) {
+  if (p.variants && Object.keys(p.variants).length) {
+    return Object.values(p.variants).reduce((s, v) => s + (parseInt(v, 10) || 0), 0);
+  }
+  return p.stock;
 }
 
 /* Placeholder produktu jako SVG (bez zewnetrznych obrazkow) */
@@ -85,7 +113,64 @@ async function fetchProducts() {
   }
   if ($('#productGrid')) renderProducts();
   if ($('#relatedGrid')) renderRelated();
+  updatePpAvailability();
+  if (document.body.dataset.page === 'wishlist') initWishlistPage();
+  if (document.body.dataset.page === 'cart') initCartPage();
   applyReveal();
+}
+
+/* ====== Dostępność wariantu na stronie produktu ====== */
+function updatePpAvailability() {
+  const btn = $('#ppAdd'); if (!btn) return;
+  const p = PRODUCTS.find((x) => x.id === document.body.dataset.productId); if (!p) return;
+  const sizeEl = $('#sizeOpts .opt.selected'), colorEl = $('#colorOpts .opt.selected');
+  const av = clientVariantStock(p, sizeEl && sizeEl.dataset.size, colorEl && colorEl.dataset.color);
+  btn.disabled = av <= 0;
+  btn.textContent = av <= 0 ? 'Wyprzedane' : 'Dodaj do koszyka';
+  const note = $('#ppStock');
+  if (note) {
+    note.className = 'pp-stock' + (av <= 0 ? ' soldout' : (av <= 5 ? ' low' : ''));
+    note.textContent = av <= 0 ? 'Wybrany wariant niedostępny' : (av <= 5 ? `Zostały ostatnie sztuki: ${av}` : '✔ Dostępny, wysyłka 48h');
+  }
+}
+
+/* ====== Strona ulubionych ====== */
+function initWishlistPage() {
+  const grid = $('#wishlistGrid'); if (!grid) return;
+  const items = PRODUCTS.filter((p) => wishlist.includes(p.id));
+  grid.innerHTML = items.length
+    ? items.map((p, i) => cardHtml(p, i)).join('')
+    : '<p class="muted">Brak ulubionych produktów. Klikaj serce ♥ na produktach, aby je tu zapisać.</p>';
+  applyReveal(grid);
+}
+
+/* ====== Strona koszyka ====== */
+function initCartPage() {
+  const box = $('#cartPage'); if (!box) return;
+  if (!cart.length) { box.innerHTML = '<p class="muted">Twój koszyk jest pusty. <a href="/#sklep" style="color:var(--accent)">Przejdź do sklepu →</a></p>'; return; }
+  const items = cart.map((i) => {
+    const p = PRODUCTS.find((x) => x.id === i.id); if (!p) return '';
+    const media = p.image ? `<img class="card-photo" src="${p.image}" alt="">` : productSvg(p);
+    return `<div class="cart-item">
+      <div class="cart-item-img">${media}</div>
+      <div class="cart-item-info"><div class="ci-name">${p.name}</div><div class="ci-meta">${i.size} · ${i.color}</div>
+        <div class="qty"><button data-dec="${i.key}">−</button><span>${i.qty}</span><button data-inc="${i.key}">+</button></div></div>
+      <div class="ci-right"><strong>${money(p.price * i.qty)}</strong><button class="ci-remove" data-rm="${i.key}">Usuń</button></div>
+    </div>`;
+  }).join('');
+  const sub = cartTotal();
+  const ship = sub >= shopSettings.freeShippingThreshold ? 0 : shopSettings.shippingCost;
+  box.innerHTML = `<div class="cart-page-grid">
+    <div>${items}</div>
+    <div class="panel-card">
+      <h3>Podsumowanie</h3>
+      <div class="fs-row"><span>Produkty</span><span>${money(sub)}</span></div>
+      <div class="fs-row"><span>Dostawa</span><span>${ship === 0 ? 'gratis 🎉' : money(ship)}</span></div>
+      <div class="fs-row fs-total"><span>Razem</span><span>${money(Math.max(0, sub + ship))}</span></div>
+      <button class="btn btn-primary btn-block" id="checkoutBtn" style="margin-top:14px">Przejdź do zamówienia</button>
+      <p class="muted small" style="margin-top:8px">Kod rabatowy podasz w następnym kroku.</p>
+    </div>
+  </div>`;
 }
 
 /* ====== WOW: odslanianie przy scrollu ====== */
@@ -120,9 +205,10 @@ function cardHtml(p, i) {
   const ratingHtml = rt.count > 0
     ? `<div class="card-rating">${starsHtml(rt.avg)} <span>${rt.avg.toFixed(1)} (${rt.count})</span></div>`
     : '';
-  const sold = p.stock <= 0;
+  const avail = clientAvailable(p);
+  const sold = avail <= 0;
   const stockBadge = sold ? '<span class="badge soldout">Wyprzedane</span>'
-    : (p.stock <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
+    : (avail <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
   const addBtn = sold ? '<button class="btn-add" type="button" disabled>Wyprzedane</button>'
     : `<button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button>`;
   const media = p.image ? `<img class="card-photo" src="${p.image}" alt="${p.name}" loading="lazy">` : productSvg(p);
@@ -130,6 +216,7 @@ function cardHtml(p, i) {
     <a class="card${sold ? ' soldout' : ''}" href="/produkt/${p.id}" data-id="${p.id}" style="animation-delay:${i * 50}ms">
       <div class="card-img">
         ${media}
+        <button class="wish-btn ${inWishlist(p.id) ? 'on' : ''}" data-wish="${p.id}" type="button" aria-label="Dodaj do ulubionych">♥</button>
         <span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>
         ${p.featured ? '<span class="badge hot">Bestseller</span>' : ''}
         ${stockBadge}
@@ -186,7 +273,7 @@ function renderRelated() {
 function addToCart(id, size, color, qty = 1) {
   const p = PRODUCTS.find(x => x.id === id);
   if (!p) return;
-  if (p.stock <= 0) { toast('Produkt niedostępny'); return; }
+  if (clientAvailable(p) <= 0) { toast('Produkt niedostępny'); return; }
   size = p.sizes.includes(size) ? size : p.sizes[0];
   color = p.colors.includes(color) ? color : p.colors[0];
   const key = `${id}|${size}|${color}`;
@@ -379,12 +466,22 @@ function ppAddToCart(id) {
 document.addEventListener('click', (e) => {
   const t = e.target;
 
+  // serce — lista życzeń (nie nawiguj do produktu)
+  if (t.dataset && t.dataset.wish) {
+    e.preventDefault(); e.stopPropagation();
+    toggleWishlist(t.dataset.wish);
+    t.classList.toggle('on', inWishlist(t.dataset.wish));
+    if (document.body.dataset.page === 'wishlist') initWishlistPage();
+    return;
+  }
+
   // szybkie dodanie z karty (nie nawiguj do strony produktu)
   if (t.dataset && t.dataset.quick) { e.preventDefault(); e.stopPropagation(); addToCart(t.dataset.quick); return; }
 
   // wybor opcji (rozmiar/kolor) na stronie produktu
   if (t.classList && t.classList.contains('opt')) {
     $$('.opt', t.parentElement).forEach(o => o.classList.toggle('selected', o === t));
+    updatePpAvailability();
     return;
   }
 
@@ -537,6 +634,7 @@ async function initAccountHeader() {
 /* ====== Start ====== */
 renderHero();
 renderCartCount();
+renderWishCount();
 initAccountHeader();
 initSettings();
 initToTop();

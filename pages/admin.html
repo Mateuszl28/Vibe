@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/styles.css?v=16" />
+  <link rel="stylesheet" href="/css/styles.css?v=17" />
 </head>
 <body data-page="admin">
   <header class="site-header">
@@ -33,6 +33,7 @@
       <a href="#" data-sec="products">Produkty</a>
       <a href="#" data-sec="discounts">Kody rabatowe</a>
       <a href="#" data-sec="customers">Klienci</a>
+      <a href="#" data-sec="reviews">Opinie</a>
       <a href="#" data-sec="messages">Wiadomości</a>
       <a href="#" data-sec="settings">Ustawienia</a>
     </aside>
@@ -121,6 +122,15 @@
             </div>
           </form>
         </div>
+        <div class="panel-card" id="variantsPanel" hidden>
+          <h2>Stany magazynowe wariantów</h2>
+          <p class="muted small">Ustaw stan dla konkretnych kombinacji rozmiar/kolor. Pozostaw puste, aby używać ogólnego stanu produktu.</p>
+          <div id="variantsBox"></div>
+          <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn-primary" id="saveVariants" type="button">Zapisz stany wariantów</button>
+            <button class="btn btn-ghost" id="clearVariants" type="button">Wyłącz warianty (użyj ogólnego stanu)</button>
+          </div>
+        </div>
         <div class="panel-card">
           <h2>Lista produktów</h2>
           <div id="adminProducts"><p class="muted">Ładowanie…</p></div>
@@ -168,6 +178,14 @@
         </div>
       </section>
 
+      <!-- OPINIE -->
+      <section data-panel="reviews" hidden>
+        <div class="panel-card">
+          <h2>Moderacja opinii</h2>
+          <div id="adminReviews"><p class="muted">Ładowanie…</p></div>
+        </div>
+      </section>
+
       <!-- USTAWIENIA -->
       <section data-panel="settings" hidden>
         <div class="panel-card">
@@ -184,11 +202,16 @@
             <button class="btn btn-primary" type="submit">Zapisz ustawienia</button>
           </form>
         </div>
+        <div class="panel-card">
+          <h2>Kopia zapasowa bazy</h2>
+          <p class="muted small">Pobierz aktualną kopię bazy danych (zamówienia, konta, produkty). Przechowuj w bezpiecznym miejscu.</p>
+          <a class="btn btn-ghost" href="/api/admin/backup" style="margin-top:10px">⬇ Pobierz kopię bazy (vibe.db)</a>
+        </div>
       </section>
     </div>
   </div>
 
   <div class="toast" id="toast" hidden></div>
-  <script src="/js/account.js?v=16"></script>
+  <script src="/js/account.js?v=17"></script>
 </body>
 </html>
