@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/styles.css?v=15" />
+  <link rel="stylesheet" href="/css/styles.css?v=16" />
 </head>
 <body data-page="konto">
   <header class="site-header">
@@ -39,7 +39,21 @@
     <div>
       <div class="panel-card">
         <h2>Dane konta</h2>
-        <div id="profile"></div>
+        <form id="profileForm" class="checkout-form">
+          <label>Imię i nazwisko<input name="name" required minlength="2" /></label>
+          <label>E-mail<input name="email" type="email" /></label>
+          <p class="form-error" id="profileErr" hidden></p>
+          <button class="btn btn-primary" type="submit">Zapisz dane</button>
+        </form>
+      </div>
+      <div class="panel-card">
+        <h2>Zmiana hasła</h2>
+        <form id="passwordForm" class="checkout-form">
+          <label>Aktualne hasło<input name="current" type="password" required autocomplete="current-password" /></label>
+          <label>Nowe hasło (min. 8 znaków)<input name="newpass" type="password" required minlength="8" autocomplete="new-password" /></label>
+          <p class="form-error" id="passwordErr" hidden></p>
+          <button class="btn btn-primary" type="submit">Zmień hasło</button>
+        </form>
       </div>
       <div class="panel-card">
         <h2>Historia zamówień</h2>
@@ -49,6 +63,6 @@
   </div>
 
   <div class="toast" id="toast" hidden></div>
-  <script src="/js/account.js?v=15"></script>
+  <script src="/js/account.js?v=16"></script>
 </body>
 </html>

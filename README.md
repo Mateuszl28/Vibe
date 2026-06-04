@@ -60,7 +60,10 @@ vibe-sklep/
 - **Baza:** SQLite (wbudowany `node:sqlite`) — plik `data/vibe.db`. Wymaga **Node ≥ 22**
   uruchomionego z flagą `--experimental-sqlite` (skrypt instalacyjny ustawia to sam).
 - **Rejestracja/logowanie:** klienci rejestrują się e-mailem (`/rejestracja`, `/logowanie`).
-- **Panel klienta** (`/konto`): dane konta + historia zamówień (zamówienia wiążą się z kontem).
+- **Panel klienta** (`/konto`): edycja danych (imię, e-mail), **zmiana hasła**, historia zamówień
+  (zamówienia wiążą się z kontem). Admin może **zresetować hasło** klienta z panelu.
+- **Strony prawne (RODO):** `/regulamin` i `/polityka-prywatnosci` (wzorce do uzupełnienia danymi firmy)
+  oraz **baner zgody na cookies** wyświetlany na każdej stronie do akceptacji.
 - **Panel admina** (`/admin`) z bocznym menu jak w prawdziwym sklepie:
   - **Pulpit** — KPI (obrót, zamówienia, nowe, klienci), wykres sprzedaży 7 dni, ostatnie
     zamówienia, alerty niskich stanów, **bestsellery** (najczęściej kupowane).

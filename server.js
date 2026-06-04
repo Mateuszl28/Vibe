@@ -273,6 +273,7 @@ function renderTemplate(absPath) {
   if (html.includes('__ANNOUNCE__')) html = html.replace(/__ANNOUNCE__/g, esc(db.getSettings().announce_text || ''));
   if (html.includes('__JSONLD__')) html = html.replace('__JSONLD__', buildJsonLd());
   if (html.includes('__CATALOG__')) html = html.replace('__CATALOG__', buildCatalogHtml());
+  html = html.replace('</body>', COOKIE_HTML + '</body>');
   renderCache[absPath] = html;
   return html;
 }
@@ -285,8 +286,17 @@ const PAGES_DIR = path.join(ROOT, 'pages');
 const PAGES = {
   '/dostawa-zwroty': 'dostawa-zwroty.html',
   '/tabela-rozmiarow': 'tabela-rozmiarow.html',
-  '/kontakt': 'kontakt.html'
+  '/kontakt': 'kontakt.html',
+  '/regulamin': 'regulamin.html',
+  '/polityka-prywatnosci': 'polityka-prywatnosci.html'
 };
+
+// Baner cookies (RODO) — wstrzykiwany do kazdej strony przed </body>
+const COOKIE_HTML = `<div class="cookie-bar" id="cookieBar" hidden>
+  <span>Używamy plików cookie i pamięci przeglądarki do działania koszyka, logowania i statystyk. Szczegóły w <a href="/polityka-prywatnosci">polityce prywatności</a>.</span>
+  <button class="btn btn-primary" id="cookieAccept" type="button">Akceptuję</button>
+</div>
+<script>(function(){try{if(!localStorage.getItem('vibe_cookie')){var b=document.getElementById('cookieBar');if(b){b.hidden=false;document.getElementById('cookieAccept').onclick=function(){localStorage.setItem('vibe_cookie','1');b.hidden=true;};}}}catch(e){}})();</script>`;
 // Strony aplikacji (konta) — NIE trafiaja do sitemap, maja noindex w HTML.
 const APP_PAGES = {
   '/logowanie': 'auth.html',
@@ -375,6 +385,7 @@ function getProductHtml(p) {
       : '<p class="pp-stock soldout">Produkt chwilowo niedostępny</p>'
   };
   let html = tpl.replace(/__([A-Z_]+)__/g, (m, key) => (key in repl ? repl[key] : m));
+  html = html.replace('</body>', COOKIE_HTML + '</body>');
   productCache[p.id] = html;
   return html;
 }
@@ -813,6 +824,33 @@ const server = http.createServer(async (req, res) => {
       const u = currentUser(req);
       return sendJson(res, 200, { user: u || null });
     }
+    if (method === 'POST' && url === '/api/auth/change-password') {
+      try {
+        const u = currentUser(req);
+        if (!u) return sendJson(res, 401, { error: 'Wymagane logowanie.' });
+        const p = JSON.parse(await readBody(req) || '{}');
+        const cur = String(p.currentPassword || '');
+        const nw = String(p.newPassword || '');
+        if (nw.length < 8) return sendJson(res, 400, { error: 'Nowe haslo musi miec min. 8 znakow.' });
+        if (!auth.verifyPassword(cur, db.getPasswordHash(u.id))) return sendJson(res, 400, { error: 'Aktualne haslo jest niepoprawne.' });
+        db.setPasswordById(u.id, auth.hashPassword(nw));
+        return sendJson(res, 200, { ok: true });
+      } catch (err) { return sendJson(res, 400, { error: err.message }); }
+    }
+    if (method === 'POST' && url === '/api/auth/profile') {
+      try {
+        const u = currentUser(req);
+        if (!u) return sendJson(res, 401, { error: 'Wymagane logowanie.' });
+        const p = JSON.parse(await readBody(req) || '{}');
+        const name = String(p.name || '').trim();
+        const email = String(p.email || '').trim().toLowerCase();
+        if (name.length < 2) return sendJson(res, 400, { error: 'Podaj imie i nazwisko.' });
+        if (email && !EMAIL_RE.test(email)) return sendJson(res, 400, { error: 'Podaj poprawny e-mail.' });
+        if (email && db.emailTakenByOther(email, u.id)) return sendJson(res, 409, { error: 'Ten e-mail jest juz zajety.' });
+        db.updateProfile(u.id, name, email || null);
+        return sendJson(res, 200, { ok: true, user: db.getUserById(u.id) });
+      } catch (err) { return sendJson(res, 400, { error: err.message }); }
+    }
 
     // --- Konto klienta ---
     if (method === 'GET' && url === '/api/orders/mine') {
@@ -848,6 +886,18 @@ const server = http.createServer(async (req, res) => {
           if (target.role === 'admin' && role === 'customer' && db.countAdmins() <= 1)
             return sendJson(res, 400, { error: 'To ostatni administrator.' });
           db.setUserRole(id, role);
+          return sendJson(res, 200, { ok: true });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      if (method === 'POST' && url === '/api/admin/users/password') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const id = parseInt(p.id, 10);
+          const pw = String(p.password || '');
+          if (!id || pw.length < 8) return sendJson(res, 400, { error: 'Haslo min. 8 znakow.' });
+          const target = db.getUserById(id);
+          if (!target) return sendJson(res, 404, { error: 'Nie ma takiego uzytkownika.' });
+          db.setPasswordById(id, auth.hashPassword(pw));
           return sendJson(res, 200, { ok: true });
         } catch (err) { return sendJson(res, 400, { error: err.message }); }
       }

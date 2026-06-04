@@ -114,12 +114,34 @@ async function initKonto() {
   const me = await api('/api/auth/me');
   if (!me.data.user) { location.href = '/logowanie?next=/konto'; return; }
   const u = me.data.user;
-  $('#accountHello').textContent = `Cześć, ${u.name}! 👋`;
-  $('#profile').innerHTML = `
-    <div class="profile-row"><span>Imię i nazwisko</span><strong>${esc(u.name)}</strong></div>
-    <div class="profile-row"><span>E-mail</span><strong>${esc(u.email || '—')}</strong></div>
-    <div class="profile-row"><span>Konto od</span><strong>${esc(new Date(u.created_at).toLocaleDateString('pl-PL'))}</strong></div>`;
+  $('#accountHello').textContent = `Cześć, ${u.name}! Konto od ${new Date(u.created_at).toLocaleDateString('pl-PL')}.`;
   $('#logoutBtn').addEventListener('click', doLogout);
+
+  // Edycja profilu
+  const pf = $('#profileForm');
+  pf.name.value = u.name || '';
+  pf.email.value = u.email || '';
+  pf.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#profileErr'); err.hidden = true;
+    const { ok, data } = await api('/api/auth/profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pf.name.value, email: pf.email.value })
+    });
+    if (ok) toast('Zapisano dane konta');
+    else { err.textContent = data.error || 'Błąd'; err.hidden = false; }
+  });
+
+  // Zmiana hasła
+  const pwf = $('#passwordForm');
+  pwf.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#passwordErr'); err.hidden = true;
+    const { ok, data } = await api('/api/auth/change-password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: pwf.current.value, newPassword: pwf.newpass.value })
+    });
+    if (ok) { toast('Hasło zmienione'); pwf.reset(); }
+    else { err.textContent = data.error || 'Błąd'; err.hidden = false; }
+  });
 
   const ord = await api('/api/orders/mine');
   const box = $('#orders');
@@ -317,7 +339,7 @@ async function initAdmin() {
             <option value="customer" ${x.role === 'customer' ? 'selected' : ''}>klient</option>
             <option value="admin" ${x.role === 'admin' ? 'selected' : ''}>admin</option>
           </select></td>
-          <td><div class="prod-actions"><button class="del" type="button" ${self ? 'disabled' : ''}>Usuń</button></div></td>
+          <td><div class="prod-actions"><button class="pw" type="button">Hasło</button><button class="del" type="button" ${self ? 'disabled' : ''}>Usuń</button></div></td>
         </tr>`; }).join('')}</tbody>
       </table>` : '<p class="muted">Brak użytkowników.</p>';
   }
@@ -332,6 +354,18 @@ async function initAdmin() {
     else { toast(data.error || 'Błąd'); renderCustomers(); }
   });
   $('#adminCustomers').addEventListener('click', async (e) => {
+    if (e.target.classList.contains('pw')) {
+      const id = parseInt(e.target.closest('tr').dataset.id, 10);
+      const us = users.find((u2) => u2.id === id);
+      const pw = prompt(`Nowe hasło dla „${us ? us.name : id}" (min. 8 znaków):`);
+      if (pw == null) return;
+      if (pw.length < 8) { toast('Hasło musi mieć min. 8 znaków'); return; }
+      const { ok, data } = await api('/api/admin/users/password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, password: pw })
+      });
+      toast(ok ? 'Ustawiono nowe hasło' : (data.error || 'Błąd'));
+      return;
+    }
     if (!e.target.classList.contains('del')) return;
     const id = parseInt(e.target.closest('tr').dataset.id, 10);
     const us = users.find((u2) => u2.id === id);
