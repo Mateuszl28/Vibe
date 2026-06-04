@@ -13,6 +13,7 @@ let cart = loadCart();
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 const money = (n) => n.toFixed(2).replace('.', ',') + ' zł';
+const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 function loadCart() {
   try { return JSON.parse(localStorage.getItem('vibe_cart')) || []; }
@@ -67,14 +68,9 @@ function toast(msg) {
   t._timer = setTimeout(() => { t.hidden = true; }, 2200);
 }
 
-/* Pseudo-oceny (stabilne na podstawie id) — tylko do prezentacji */
-function rating(id) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return { score: 4.5 + (h % 5) / 10, count: 40 + (h % 260) };
-}
-function stars(score) {
-  const full = Math.round(score);
+/* Gwiazdki z realnej sredniej oceny */
+function starsHtml(avg) {
+  const full = Math.round(avg);
   return '★★★★★'.slice(0, full) + '☆☆☆☆☆'.slice(0, 5 - full);
 }
 
@@ -120,7 +116,10 @@ function initToTop() {
 
 /* ====== Karta produktu (link do strony produktu) ====== */
 function cardHtml(p, i) {
-  const r = rating(p.id);
+  const rt = p.rating || { avg: 0, count: 0 };
+  const ratingHtml = rt.count > 0
+    ? `<div class="card-rating">${starsHtml(rt.avg)} <span>${rt.avg.toFixed(1)} (${rt.count})</span></div>`
+    : '';
   const sold = p.stock <= 0;
   const stockBadge = sold ? '<span class="badge soldout">Wyprzedane</span>'
     : (p.stock <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
@@ -137,7 +136,7 @@ function cardHtml(p, i) {
       </div>
       <div class="card-body">
         <div class="card-name">${p.name}</div>
-        <div class="card-rating">${stars(r.score)} <span>${r.score.toFixed(1)} (${r.count})</span></div>
+        ${ratingHtml}
         <div class="card-colors">
           ${p.colors.map(c => `<span class="swatch" style="background:${colorHex(c)}" title="${c}"></span>`).join('')}
         </div>
@@ -442,6 +441,64 @@ function renderHero() {
 const nf = $('#newsletterForm');
 if (nf) nf.addEventListener('submit', (e) => { e.preventDefault(); e.target.reset(); toast('Zapisano! Sprawdź skrzynkę 📩'); });
 
+/* ====== Opinie na stronie produktu ====== */
+async function initReviews() {
+  const box = $('#reviewsBox');
+  if (!box) return;
+  const id = document.body.dataset.productId;
+  let data;
+  try { data = await (await fetch('/api/products/' + id + '/reviews')).json(); }
+  catch { box.innerHTML = '<p class="muted">Nie udało się wczytać opinii.</p>'; return; }
+
+  const ppr = $('#ppRating');
+  if (ppr) ppr.innerHTML = data.count > 0
+    ? `<span class="stars">${starsHtml(data.avg)}</span> <span class="muted">${data.avg.toFixed(1)} · ${data.count} ${data.count === 1 ? 'opinia' : 'opinii'}</span>`
+    : '<span class="muted">Brak opinii — bądź pierwszy</span>';
+
+  const listHtml = data.reviews.length
+    ? data.reviews.map((r) => `<div class="review">
+        <div class="review-top"><strong>${escHtml(r.name)}</strong> <span class="stars">${starsHtml(r.rating)}</span>
+        <span class="muted review-date">${new Date(r.createdAt).toLocaleDateString('pl-PL')}</span></div>
+        ${r.comment ? `<p>${escHtml(r.comment)}</p>` : ''}</div>`).join('')
+    : '<p class="muted">Brak opinii. Bądź pierwszy, który oceni ten produkt.</p>';
+
+  let formHtml = '';
+  const cur = data.myReview;
+  if (data.canReview) {
+    formHtml = `<div class="review-form">
+      <h3>${cur ? 'Twoja opinia' : 'Dodaj opinię'}</h3>
+      <div class="star-pick" id="starPick">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}" class="${cur && n <= cur.rating ? 'on' : ''}">★</button>`).join('')}</div>
+      <textarea id="reviewComment" rows="3" placeholder="Twoja opinia (opcjonalnie)">${cur ? escHtml(cur.comment || '') : ''}</textarea>
+      <button class="btn btn-primary" id="submitReview" type="button">${cur ? 'Zaktualizuj opinię' : 'Wyślij opinię'}</button>
+    </div>`;
+  } else if (data.loggedIn) {
+    formHtml = '<p class="muted review-note">Opinię możesz dodać dopiero po zakupie tego produktu.</p>';
+  } else {
+    formHtml = '<p class="muted review-note"><a href="/logowanie">Zaloguj się</a>, aby dodać opinię (po zakupie).</p>';
+  }
+  box.innerHTML = listHtml + formHtml;
+
+  if (data.canReview) {
+    let chosen = cur ? cur.rating : 0;
+    const pick = $('#starPick');
+    pick.addEventListener('click', (e) => {
+      if (!e.target.dataset.star) return;
+      chosen = parseInt(e.target.dataset.star, 10);
+      $$('#starPick button').forEach((b) => b.classList.toggle('on', parseInt(b.dataset.star, 10) <= chosen));
+    });
+    $('#submitReview').addEventListener('click', async () => {
+      if (!chosen) { toast('Wybierz ocenę (gwiazdki)'); return; }
+      const res = await fetch('/api/reviews', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: id, rating: chosen, comment: $('#reviewComment').value })
+      });
+      const d = await res.json();
+      if (res.ok) { toast('Dziękujemy za opinię!'); initReviews(); }
+      else toast(d.error || 'Nie udało się dodać opinii');
+    });
+  }
+}
+
 /* ====== Ustawienia sklepu (dostawa) ====== */
 async function initSettings() {
   try {
@@ -478,4 +535,5 @@ initSettings();
 initToTop();
 initShopTools();
 applyReveal();
+initReviews();
 fetchProducts();

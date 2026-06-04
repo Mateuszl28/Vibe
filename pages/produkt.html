@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/styles.css?v=13" />
+  <link rel="stylesheet" href="/css/styles.css?v=14" />
 
   __JSONLD__
 </head>
@@ -65,7 +65,7 @@
       <div class="pp-info">
         <span class="pp-cat">__P_CAT__</span>
         <h1 class="pp-title">__P_NAME__</h1>
-        <div class="pp-rating">__P_STARS__ <span>__P_SCORE__ · __P_COUNT__ opinii</span></div>
+        <div class="pp-rating" id="ppRating">__P_RATING__</div>
         <div class="pp-price">__P_PRICE__</div>
         <p class="pp-desc">__P_DESC__</p>
 
@@ -88,6 +88,11 @@
         </div>
       </div>
     </div>
+
+    <section class="product-reviews" id="reviews">
+      <h2>Opinie klientów</h2>
+      <div id="reviewsBox"><p class="muted">Ładowanie opinii…</p></div>
+    </section>
 
     <section class="related">
       <h2>Może Ci się spodobać</h2>
@@ -137,6 +142,6 @@
   <div class="toast" id="toast" hidden></div>
   <button class="to-top" id="toTop" aria-label="Do góry">↑</button>
 
-  <script src="/js/app.js?v=13"></script>
+  <script src="/js/app.js?v=14"></script>
 </body>
 </html>

@@ -47,7 +47,10 @@ vibe-sklep/
 - Jasny, minimalistyczny UI (motyw light).
 - Osobne strony produktów z własnym URL: `/produkt/<id>` (np. `/produkt/bluza-classic`).
 - Dane strukturalne JSON-LD: `Store` + `ItemList` (strona główna), `Product` +
-  `AggregateRating` + `BreadcrumbList` (strony produktów), `Organization` z social media.
+  `BreadcrumbList` (strony produktów), `Organization` z social media. `AggregateRating`
+  dodawane TYLKO gdy są prawdziwe opinie (zgodnie z wytycznymi Google).
+- Opinie klientów (1–5 + komentarz) — tylko dla zalogowanego klienta, który kupił produkt;
+  średnia ocena pojawia się na kartach i stronie produktu dopiero po pierwszej opinii.
 - Per-produktowy obrazek Open Graph generowany na bieżąco: `/img/produkt/<id>.svg`.
 - Katalog renderowany po stronie serwera (linki do produktów widoczne dla robotów bez JS).
 - `/robots.txt` i `/sitemap.xml` (strona główna + podstrony + wszystkie produkty).

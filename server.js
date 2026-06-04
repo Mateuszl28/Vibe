@@ -60,6 +60,14 @@ db.seedSettings({
 const UPLOADS_DIR = path.join(PUBLIC_DIR, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
+// Doklejenie realnych ocen (z opinii klientow) do produktow
+function applyRatings(list) {
+  const m = db.getRatingsMap();
+  list.forEach((p) => { p.rating = m[p.id] || { avg: 0, count: 0 }; });
+  return list;
+}
+applyRatings(PRODUCTS);
+
 // Bazowy adres witryny (do SEO: canonical, OG, sitemap). Ustaw przez SITE_URL.
 const SITE_URL = (process.env.SITE_URL || `http://85.215.197.199:${PORT}`).replace(/\/$/, '');
 
@@ -192,7 +200,10 @@ function starsStr(score) {
 }
 // Serwerowo wyrenderowana karta produktu (z linkiem -> SEO)
 function serverCard(p) {
-  const r = ratingFor(p.id);
+  const rt = p.rating || { avg: 0, count: 0 };
+  const ratingHtml = rt.count > 0
+    ? `<div class="card-rating">${starsStr(rt.avg)} <span>${rt.avg.toFixed(1)} (${rt.count})</span></div>`
+    : '';
   const sold = p.stock <= 0;
   const stockBadge = sold ? '<span class="badge soldout">Wyprzedane</span>'
     : (p.stock <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
@@ -203,7 +214,7 @@ function serverCard(p) {
     <div class="card-img">${media}<span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>${p.featured ? '<span class="badge hot">Bestseller</span>' : ''}${stockBadge}</div>
     <div class="card-body">
       <div class="card-name">${esc(p.name)}</div>
-      <div class="card-rating">${starsStr(r.score)} <span>${r.score.toFixed(1)} (${r.count})</span></div>
+      ${ratingHtml}
       <div class="card-colors">${p.colors.map((c) => `<span class="swatch" style="background:${colorHex(c)}" title="${esc(c)}"></span>`).join('')}</div>
       <div class="card-foot"><span class="price">${moneyPl(p.price)}</span>${addBtn}</div>
     </div>
@@ -284,16 +295,14 @@ const APP_PAGES = {
   '/admin': 'admin.html'
 };
 
-// Pseudo-oceny (stabilne na podstawie id) — identyczne jak na frontendzie
-function ratingFor(id) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return { score: (4.5 + (h % 5) / 10), count: 40 + (h % 260) };
+function starsHtml(avg) {
+  const f = Math.round(avg);
+  return '★★★★★'.slice(0, f) + '☆☆☆☆☆'.slice(0, 5 - f);
 }
 
 // JSON-LD dla pojedynczego produktu (Product + BreadcrumbList)
 function buildProductJsonLd(p) {
-  const r = ratingFor(p.id);
+  const rt = p.rating || { avg: 0, count: 0 };
   const product = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -309,14 +318,17 @@ function buildProductJsonLd(p) {
       priceCurrency: 'PLN',
       availability: 'https://schema.org/InStock',
       url: SITE_URL + '/produkt/' + p.id
-    },
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: r.score.toFixed(1),
-      reviewCount: r.count,
-      bestRating: '5'
     }
   };
+  // AggregateRating tylko gdy sa prawdziwe opinie (wymog Google)
+  if (rt.count > 0) {
+    product.aggregateRating = {
+      '@type': 'AggregateRating',
+      ratingValue: rt.avg.toFixed(1),
+      reviewCount: rt.count,
+      bestRating: '5'
+    };
+  }
   const crumbs = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -333,12 +345,14 @@ function buildProductJsonLd(p) {
 const productCache = {};
 function getProductHtml(p) {
   if (productCache[p.id]) return productCache[p.id];
-  const r = ratingFor(p.id);
+  const rt = p.rating || { avg: 0, count: 0 };
   const tpl = fs.readFileSync(path.join(PAGES_DIR, 'produkt.html'), 'utf8');
   const catLabel = p.category === 'bluza' ? 'Bluzy' : 'Koszulki';
   const sizeOpts = p.sizes.map((s, i) => `<button type="button" class="opt ${i === 0 ? 'selected' : ''}" data-size="${esc(s)}">${esc(s)}</button>`).join('');
   const colorOpts = p.colors.map((c, i) => `<button type="button" class="opt ${i === 0 ? 'selected' : ''}" data-color="${esc(c)}">${esc(c)}</button>`).join('');
-  const stars = '★★★★★'.slice(0, Math.round(r.score)) + '☆☆☆☆☆'.slice(0, 5 - Math.round(r.score));
+  const ratingHtml = rt.count > 0
+    ? `<span class="stars">${starsHtml(rt.avg)}</span> <span class="muted">${rt.avg.toFixed(1)} · ${rt.count} ${rt.count === 1 ? 'opinia' : 'opinii'}</span>`
+    : '<span class="muted">Brak opinii — bądź pierwszy</span>';
   const repl = {
     SITE_URL,
     ANNOUNCE: esc(db.getSettings().announce_text || ''),
@@ -352,9 +366,7 @@ function getProductHtml(p) {
     P_OGIMG: p.image ? SITE_URL + p.image : SITE_URL + '/img/produkt/' + p.id + '.svg',
     P_SIZES: sizeOpts,
     P_COLORS: colorOpts,
-    P_STARS: stars,
-    P_SCORE: r.score.toFixed(1),
-    P_COUNT: String(r.count),
+    P_RATING: ratingHtml,
     P_ADDBTN: p.stock > 0
       ? `<button class="btn btn-primary btn-block" id="ppAdd" data-id="${esc(p.id)}">Dodaj do koszyka</button>`
       : '<button class="btn btn-primary btn-block" disabled>Wyprzedane</button>',
@@ -378,7 +390,7 @@ function clearPageCache() {
 }
 // Przeladowanie produktow z bazy + czyszczenie cache
 function refreshProducts() {
-  PRODUCTS = db.getAllProducts();
+  PRODUCTS = applyRatings(db.getAllProducts());
   clearPageCache();
 }
 
@@ -707,6 +719,17 @@ const server = http.createServer(async (req, res) => {
     if (method === 'GET' && url === '/api/products') {
       return sendJson(res, 200, PRODUCTS);
     }
+    if (method === 'GET' && /^\/api\/products\/[^/]+\/reviews$/.test(pathOnly)) {
+      const id = pathOnly.split('/')[3];
+      const rt = db.getRatingsMap()[id] || { avg: 0, count: 0 };
+      const u = currentUser(req);
+      let canReview = false; let myReview = null;
+      if (u) {
+        myReview = db.getUserReview(id, u.id);
+        canReview = db.getOrdersByUser(u.id).some((o) => o.status !== 'anulowane' && o.items.some((it) => it.id === id));
+      }
+      return sendJson(res, 200, { reviews: db.getReviews(id), avg: rt.avg, count: rt.count, canReview, myReview, loggedIn: !!u });
+    }
     if (method === 'GET' && url.startsWith('/api/products/')) {
       const id = url.replace('/api/products/', '').split('?')[0];
       const product = PRODUCTS.find((p) => p.id === id);
@@ -728,6 +751,22 @@ const server = http.createServer(async (req, res) => {
       } catch (err) {
         return sendJson(res, 400, { error: err.message });
       }
+    }
+    if (method === 'POST' && url === '/api/reviews') {
+      try {
+        const u = currentUser(req);
+        if (!u) return sendJson(res, 401, { error: 'Zaloguj się, aby dodać opinię.' });
+        const p = JSON.parse(await readBody(req) || '{}');
+        const id = String(p.productId || '');
+        const rating = parseInt(p.rating, 10);
+        if (!db.getProductById(id)) return sendJson(res, 404, { error: 'Nie ma takiego produktu.' });
+        if (!(rating >= 1 && rating <= 5)) return sendJson(res, 400, { error: 'Ocena musi być od 1 do 5.' });
+        const purchased = db.getOrdersByUser(u.id).some((o) => o.status !== 'anulowane' && o.items.some((it) => it.id === id));
+        if (!purchased) return sendJson(res, 403, { error: 'Opinię możesz dodać dopiero po zakupie tego produktu.' });
+        db.upsertReview({ productId: id, userId: u.id, rating, comment: String(p.comment || '').slice(0, 1000) });
+        refreshProducts();
+        return sendJson(res, 201, { ok: true });
+      } catch (err) { return sendJson(res, 400, { error: err.message }); }
     }
     if (method === 'GET' && url === '/api/settings') {
       const s = db.getSettings();
