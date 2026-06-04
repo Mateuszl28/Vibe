@@ -32,9 +32,9 @@
   <!-- ===== Fonty ===== -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/css/styles.css?v=17" />
+  <link rel="stylesheet" href="/css/styles.css?v=18" />
 
   <!-- ===== Dane strukturalne (JSON-LD) — wstrzykiwane przez serwer ===== -->
   __JSONLD__
@@ -69,12 +69,12 @@
   <section class="hero">
     <div class="container hero-grid">
       <div class="hero-text">
-        <span class="hero-badge">✦ Nowa kolekcja 2026</span>
+        <span class="hero-badge">Nowa kolekcja — 2026</span>
         <h1>Noś swój <span class="accent">vibe</span>.</h1>
-        <p>Bluzy i koszulki premium z najlepszej bawełny. Streetwear, który mówi za Ciebie — bez kompromisów w jakości.</p>
+        <p>Bluzy i koszulki szyte z myślą o detalu. Naturalne tkaniny, spokojne kroje, trwałość na lata.</p>
         <div class="hero-cta">
           <a href="#sklep" class="btn btn-primary">Zobacz kolekcję</a>
-          <a href="#" data-filter="bluza" class="btn btn-ghost">Bluzy →</a>
+          <a href="#" data-filter="bluza" class="btn btn-ghost">Bluzy</a>
         </div>
         <div class="hero-stats">
           <div><strong>48h</strong><span>wysyłka</span></div>
@@ -94,10 +94,22 @@
 
   <!-- Pasek zaufania -->
   <section class="features container">
-    <div class="feature"><span class="fi">🚚</span><div><strong>Darmowa dostawa</strong><p>przy zamówieniach od 200 zł</p></div></div>
-    <div class="feature"><span class="fi">↩️</span><div><strong>30 dni na zwrot</strong><p>bez podawania przyczyny</p></div></div>
-    <div class="feature"><span class="fi">🧵</span><div><strong>Premium jakość</strong><p>bawełna 100%, gramatura 220g</p></div></div>
-    <div class="feature"><span class="fi">🔒</span><div><strong>Bezpieczne płatności</strong><p>szyfrowane transakcje</p></div></div>
+    <div class="feature">
+      <span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 3h13v13H1zM14 8h5l3 3v5h-8z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
+      <div><strong>Darmowa dostawa</strong><p>przy zamówieniach od 200 zł</p></div>
+    </div>
+    <div class="feature">
+      <span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 7v6h6"/><path d="M3.5 13a9 9 0 1 0 2.3-9.3L3 7"/></svg></span>
+      <div><strong>30 dni na zwrot</strong><p>bez podawania przyczyny</p></div>
+    </div>
+    <div class="feature">
+      <span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10z"/><circle cx="7.5" cy="7.5" r="1.4"/></svg></span>
+      <div><strong>Premium jakość</strong><p>naturalna bawełna 100%</p></div>
+    </div>
+    <div class="feature">
+      <span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+      <div><strong>Bezpieczne płatności</strong><p>szyfrowane transakcje</p></div>
+    </div>
   </section>
 
   <main class="container" id="sklep">
@@ -202,6 +214,6 @@
   <div class="toast" id="toast" hidden></div>
   <button class="to-top" id="toTop" aria-label="Do góry">↑</button>
 
-  <script src="/js/app.js?v=17"></script>
+  <script src="/js/app.js?v=18"></script>
 </body>
 </html>
