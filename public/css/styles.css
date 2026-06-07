@@ -25,7 +25,14 @@ html { scroll-behavior: smooth; }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background: var(--bg);
+  background:
+    radial-gradient(900px 600px at 12% -5%, rgba(255, 196, 150, 0.32), transparent 60%),
+    radial-gradient(800px 560px at 92% 8%, rgba(186, 156, 255, 0.26), transparent 62%),
+    radial-gradient(760px 520px at 80% 58%, rgba(255, 158, 188, 0.18), transparent 65%),
+    radial-gradient(820px 580px at 6% 85%, rgba(140, 214, 192, 0.24), transparent 62%),
+    radial-gradient(700px 480px at 96% 96%, rgba(255, 214, 130, 0.22), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -74,7 +81,14 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ===== Hero — kompaktowe intro ===== */
-.hero { padding: 64px 0 56px; background: var(--bg-soft); border-bottom: 1px solid var(--line); }
+.hero {
+  padding: 64px 0 56px;
+  background:
+    radial-gradient(560px 320px at 85% 0%, rgba(255, 196, 150, 0.35), transparent 70%),
+    radial-gradient(480px 300px at 5% 100%, rgba(186, 156, 255, 0.22), transparent 70%),
+    rgba(243, 241, 234, 0.55);
+  border-bottom: 1px solid var(--line);
+}
 .hero-text { max-width: 700px; }
 .hero-badge {
   display: inline-block; color: var(--accent); margin-bottom: 16px;
@@ -265,7 +279,13 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 800px) { .product-layout { grid-template-columns: 1fr; gap: 26px; } .product-gallery { position: static; } }
 
 /* ===== Podstrony (Pomoc) ===== */
-.page-hero { padding: 56px 0 36px; background: radial-gradient(620px 340px at 82% -20%, var(--accent-soft), transparent 70%); border-bottom: 1px solid var(--line); }
+.page-hero {
+  padding: 56px 0 36px;
+  background:
+    radial-gradient(620px 340px at 82% -20%, rgba(255, 196, 150, 0.4), transparent 70%),
+    radial-gradient(520px 300px at 8% 110%, rgba(186, 156, 255, 0.22), transparent 70%);
+  border-bottom: 1px solid var(--line);
+}
 .page-hero .crumbs { color: var(--muted); font-size: 0.85rem; margin-bottom: 10px; }
 .page-hero .crumbs a:hover { color: var(--text); }
 .page-hero h1 { font-size: clamp(2rem, 5vw, 3rem); }
@@ -312,7 +332,7 @@ a { color: inherit; text-decoration: none; }
 .newsletter-form input:focus { outline: none; border-color: var(--accent); }
 
 /* ===== Footer ===== */
-.site-footer { border-top: 1px solid var(--line); padding: 56px 0 30px; margin-top: 40px; background: var(--bg-soft); }
+.site-footer { border-top: 1px solid var(--line); padding: 56px 0 30px; margin-top: 40px; background: rgba(243, 241, 234, 0.5); }
 .footer-cols { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 30px; }
 .footer-cols h4 { margin-bottom: 14px; font-size: 0.95rem; }
 .footer-cols a { display: block; color: var(--muted); padding: 4px 0; transition: color .2s; }
