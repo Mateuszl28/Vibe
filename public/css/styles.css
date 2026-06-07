@@ -26,11 +26,11 @@ html { scroll-behavior: smooth; }
 body {
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   background:
-    radial-gradient(900px 600px at 12% -5%, rgba(255, 196, 150, 0.32), transparent 60%),
-    radial-gradient(800px 560px at 92% 8%, rgba(186, 156, 255, 0.26), transparent 62%),
-    radial-gradient(760px 520px at 80% 58%, rgba(255, 158, 188, 0.18), transparent 65%),
-    radial-gradient(820px 580px at 6% 85%, rgba(140, 214, 192, 0.24), transparent 62%),
-    radial-gradient(700px 480px at 96% 96%, rgba(255, 214, 130, 0.22), transparent 60%),
+    radial-gradient(950px 640px at 14% -6%, rgba(255, 145, 185, 0.34), transparent 62%),
+    radial-gradient(820px 560px at 90% 10%, rgba(196, 160, 255, 0.28), transparent 62%),
+    radial-gradient(780px 540px at 78% 55%, rgba(255, 170, 205, 0.22), transparent 65%),
+    radial-gradient(840px 590px at 4% 80%, rgba(255, 190, 165, 0.28), transparent 62%),
+    radial-gradient(720px 500px at 95% 95%, rgba(245, 150, 215, 0.24), transparent 60%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
@@ -84,9 +84,9 @@ a { color: inherit; text-decoration: none; }
 .hero {
   padding: 64px 0 56px;
   background:
-    radial-gradient(560px 320px at 85% 0%, rgba(255, 196, 150, 0.35), transparent 70%),
-    radial-gradient(480px 300px at 5% 100%, rgba(186, 156, 255, 0.22), transparent 70%),
-    rgba(243, 241, 234, 0.55);
+    radial-gradient(560px 320px at 85% 0%, rgba(255, 150, 190, 0.38), transparent 70%),
+    radial-gradient(480px 300px at 5% 100%, rgba(196, 160, 255, 0.25), transparent 70%),
+    rgba(243, 241, 234, 0.45);
   border-bottom: 1px solid var(--line);
 }
 .hero-text { max-width: 700px; }
@@ -282,8 +282,8 @@ a { color: inherit; text-decoration: none; }
 .page-hero {
   padding: 56px 0 36px;
   background:
-    radial-gradient(620px 340px at 82% -20%, rgba(255, 196, 150, 0.4), transparent 70%),
-    radial-gradient(520px 300px at 8% 110%, rgba(186, 156, 255, 0.22), transparent 70%);
+    radial-gradient(620px 340px at 82% -20%, rgba(255, 150, 190, 0.42), transparent 70%),
+    radial-gradient(520px 300px at 8% 110%, rgba(196, 160, 255, 0.25), transparent 70%);
   border-bottom: 1px solid var(--line);
 }
 .page-hero .crumbs { color: var(--muted); font-size: 0.85rem; margin-bottom: 10px; }
