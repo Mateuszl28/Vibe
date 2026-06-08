@@ -713,6 +713,10 @@ const server = http.createServer(async (req, res) => {
   const method = req.method || 'GET';
   const pathOnly = url.split('?')[0];
 
+  // Przekierowanie calej strony na nowa domene (trwale 301)
+  res.writeHead(301, { Location: 'https://www.vibe.eventsgroupvp.pl/' });
+  return res.end();
+
   // SEO: robots.txt i sitemap.xml
   if (method === 'GET' && pathOnly === '/robots.txt') {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
