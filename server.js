@@ -32,7 +32,8 @@ const MIME = {
   '.jpeg': 'image/jpeg',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
-  '.webp': 'image/webp'
+  '.webp': 'image/webp',
+  '.avif': 'image/avif'
 };
 
 // ---- dane produktow (wczytywane raz, z mozliwoscia odswiezenia) ----
@@ -385,6 +386,7 @@ function getIndexHtml() {
 // Osobne podstrony (czyste URL-e). Pliki w katalogu pages/ (poza public, nie serwowane statycznie).
 const PAGES_DIR = path.join(ROOT, 'pages');
 const PAGES = {
+  '/eventy': 'eventy.html',
   '/dostawa-zwroty': 'dostawa-zwroty.html',
   '/tabela-rozmiarow': 'tabela-rozmiarow.html',
   '/kontakt': 'kontakt.html',
