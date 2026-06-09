@@ -9,6 +9,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const tls = require('tls');
 const db = require('./lib/db');
 const auth = require('./lib/auth');
 
@@ -651,6 +652,102 @@ function handleLogin(req, res, raw, ip) {
 
 // ---- wiadomosci z formularza kontaktowego ----
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
+
+// ---- Wysylka e-mail (mini-klient SMTP, bez zaleznosci) ----
+// Konfiguracja przez zmienne srodowiskowe. Gdy brak SMTP_HOST/USER/PASS,
+// wysylka jest pomijana, a wiadomosci i tak zapisuja sie do messages.json.
+const SMTP = {
+  host: process.env.SMTP_HOST || '',
+  port: parseInt(process.env.SMTP_PORT, 10) || 465,
+  user: process.env.SMTP_USER || '',
+  pass: process.env.SMTP_PASS || '',
+  to: process.env.CONTACT_TO || process.env.SMTP_USER || ''
+};
+
+function b64(s) { return Buffer.from(s, 'utf8').toString('base64'); }
+
+// Naglowek z polskimi znakami -> MIME encoded-word (UTF-8 base64)
+function encHeader(s) { return `=?UTF-8?B?${b64(s)}?=`; }
+
+// Tresc base64, lamana co 76 znakow (unikamy problemow z dlugimi liniami / kropkami)
+function b64Body(s) { return b64(s).replace(/(.{76})/g, '$1\r\n'); }
+
+function buildMail({ fromName, from, to, replyTo, subject, text }) {
+  const date = new Date().toUTCString().replace(/GMT$/, '+0000');
+  const lines = [
+    `From: ${encHeader(fromName)} <${from}>`,
+    `To: <${to}>`,
+    replyTo ? `Reply-To: <${replyTo}>` : null,
+    `Subject: ${encHeader(subject)}`,
+    `Date: ${date}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    b64Body(text)
+  ].filter((l) => l !== null);
+  return lines.join('\r\n');
+}
+
+// Sekwencyjny dialog SMTP po TLS (port 465). Zwraca Promise.
+function smtpSend({ from, to, replyTo, subject, text, fromName }) {
+  return new Promise((resolve, reject) => {
+    if (!SMTP.host || !SMTP.user || !SMTP.pass) {
+      return reject(new Error('SMTP nie jest skonfigurowany (SMTP_HOST/SMTP_USER/SMTP_PASS).'));
+    }
+    const socket = tls.connect({ host: SMTP.host, port: SMTP.port, servername: SMTP.host });
+    socket.setEncoding('utf8');
+    socket.setTimeout(15000, () => { socket.destroy(new Error('SMTP timeout')); });
+
+    let buffer = '';
+    let resolver = null;
+    socket.on('data', (chunk) => {
+      buffer += chunk;
+      const lines = buffer.split('\r\n');
+      for (let i = 0; i < lines.length; i++) {
+        // ostatnia linia odpowiedzi ma format "NNN " (spacja po kodzie)
+        if (/^\d{3} /.test(lines[i])) {
+          const code = parseInt(lines[i].slice(0, 3), 10);
+          buffer = lines.slice(i + 1).join('\r\n');
+          const r = resolver; resolver = null;
+          if (r) r(code);
+          break;
+        }
+      }
+    });
+    socket.on('error', reject);
+    const expect = () => new Promise((r) => { resolver = r; });
+    const send = (s) => socket.write(s + '\r\n');
+
+    (async () => {
+      try {
+        if (await expect() !== 220) throw new Error('Brak powitania SMTP.');
+        send(`EHLO ${SMTP.host}`);
+        if (await expect() !== 250) throw new Error('EHLO odrzucone.');
+        send('AUTH LOGIN');
+        if (await expect() !== 334) throw new Error('AUTH LOGIN odrzucone.');
+        send(b64(SMTP.user));
+        if (await expect() !== 334) throw new Error('Nazwa uzytkownika odrzucona.');
+        send(b64(SMTP.pass));
+        if (await expect() !== 235) throw new Error('Logowanie SMTP nieudane (zle haslo?).');
+        send(`MAIL FROM:<${from}>`);
+        if (await expect() !== 250) throw new Error('MAIL FROM odrzucone.');
+        send(`RCPT TO:<${to}>`);
+        { const c = await expect(); if (c !== 250 && c !== 251) throw new Error('RCPT TO odrzucone.'); }
+        send('DATA');
+        if (await expect() !== 354) throw new Error('DATA odrzucone.');
+        socket.write(buildMail({ fromName, from, to, replyTo, subject, text }) + '\r\n.\r\n');
+        if (await expect() !== 250) throw new Error('Serwer nie przyjal wiadomosci.');
+        send('QUIT');
+        socket.end();
+        resolve();
+      } catch (err) {
+        try { socket.end(); } catch {}
+        reject(err);
+      }
+    })();
+  });
+}
 function handleContact(res, raw) {
   let p;
   try { p = JSON.parse(raw || '{}'); } catch { return sendJson(res, 400, { error: 'Niepoprawny JSON.' }); }
@@ -670,6 +767,21 @@ function handleContact(res, raw) {
     return sendJson(res, 500, { error: 'Nie udalo sie wyslac wiadomosci.' });
   }
   console.log(`[KONTAKT] ${email} - ${name}`);
+
+  // Powiadomienie e-mail (best-effort) — nie blokuje odpowiedzi dla klienta.
+  if (SMTP.host && SMTP.user && SMTP.pass) {
+    const subject = `Nowa wiadomość z formularza — ${name}`;
+    const body = `Imię: ${name}\nE-mail: ${email}\n\nWiadomość:\n${message}\n`;
+    smtpSend({
+      fromName: 'Vibe — formularz',
+      from: SMTP.user,        // From musi byc kontem uwierzytelnionym w nazwa.pl
+      to: SMTP.to,            // dokad trafia powiadomienie
+      replyTo: email,         // "Odpowiedz" idzie wprost do klienta
+      subject,
+      text: body
+    }).catch((err) => console.error('[KONTAKT] e-mail nie wyslany:', err.message));
+  }
+
   return sendJson(res, 201, { ok: true });
 }
 
