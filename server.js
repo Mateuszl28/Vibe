@@ -623,6 +623,7 @@ function handleCreateOrder(req, res, raw, user) {
     return sendJson(res, 500, { error: 'Nie udalo sie zapisac zamowienia.' });
   }
   console.log(`[ZAMOWIENIE] ${order.id} - ${order.customer.email} - ${order.total} zl${user ? ' (user ' + user.id + ')' : ''}`);
+  sendOrderEmails(order); // powiadomienia e-mail (klient + sklep), best-effort
   return sendJson(res, 201, { ok: true, orderId: order.id, total: order.total });
 }
 
@@ -770,6 +771,56 @@ function smtpSend({ from, to, replyTo, subject, text, fromName }) {
     })();
   });
 }
+// Tresc maila z podsumowaniem zamowienia (klient + sklep)
+function buildOrderEmailText(order) {
+  const money = (n) => Number(n).toFixed(2).replace('.', ',') + ' zł';
+  const sub = order.items.reduce((s, it) => s + it.lineTotal, 0);
+  const lines = [];
+  lines.push(`Numer zamówienia: ${order.id}`);
+  lines.push('');
+  lines.push('Produkty:');
+  for (const it of order.items) {
+    lines.push(`  • ${it.name} (${it.size}, ${it.color}) × ${it.qty} — ${money(it.lineTotal)}`);
+  }
+  lines.push('');
+  lines.push(`Wartość produktów: ${money(sub)}`);
+  if (order.discount > 0) lines.push(`Rabat${order.discountCode ? ' (' + order.discountCode + ')' : ''}: -${money(order.discount)}`);
+  lines.push(`Dostawa: ${order.shipping === 0 ? 'gratis' : money(order.shipping)}`);
+  lines.push(`RAZEM DO ZAPŁATY: ${money(order.total)}`);
+  lines.push('');
+  lines.push('Dane do wysyłki:');
+  lines.push(`  ${order.customer.name}`);
+  lines.push(`  ${order.customer.address}`);
+  if (order.customer.phone) lines.push(`  tel. ${order.customer.phone}`);
+  lines.push(`  ${order.customer.email}`);
+  return lines.join('\n') + '\n';
+}
+
+// Wyslanie powiadomien o zamowieniu (best-effort, nie blokuje odpowiedzi)
+function sendOrderEmails(order) {
+  if (!(SMTP.host && SMTP.user && SMTP.pass)) return;
+  const summary = buildOrderEmailText(order);
+  const shopAddr = (SMTP.to || SMTP.user).split(',')[0].trim();
+  // 1) potwierdzenie do klienta
+  smtpSend({
+    fromName: 'Vibe',
+    from: SMTP.user,
+    to: order.customer.email,
+    replyTo: shopAddr,
+    subject: `Potwierdzenie zamówienia ${order.id} — Vibe`,
+    text: `Dziękujemy za zamówienie w Vibe! 🎉\n\nPrzyjęliśmy je do realizacji — poniżej podsumowanie.\n\n${summary}\nW razie pytań po prostu odpowiedz na tę wiadomość.\n`
+  }).catch((err) => console.error('[ZAMOWIENIE] mail do klienta nie wyslany:', err.message));
+  // 2) powiadomienie na skrzynke sklepu
+  smtpSend({
+    fromName: 'Vibe — sklep',
+    from: SMTP.user,
+    to: SMTP.to,
+    replyTo: order.customer.email,
+    subject: `Nowe zamówienie ${order.id} — ${Number(order.total).toFixed(2)} zł`,
+    text: `Nowe zamówienie w sklepie:\n\n${summary}`
+  }).catch((err) => console.error('[ZAMOWIENIE] mail do sklepu nie wyslany:', err.message));
+}
+
 function handleContact(res, raw) {
   let p;
   try { p = JSON.parse(raw || '{}'); } catch { return sendJson(res, 400, { error: 'Niepoprawny JSON.' }); }
