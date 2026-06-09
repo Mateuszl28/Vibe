@@ -350,8 +350,8 @@ function checkoutFormHtml() {
       <p class="discount-msg" id="discountMsg" hidden></p>
       <div class="form-summary" id="formSummary"></div>
       <p class="form-error" id="formError" hidden></p>
-      <button type="submit" class="btn btn-primary btn-block">Zamawiam i płacę</button>
-      <p class="muted small">To wersja demo — płatność nie jest pobierana.</p>
+      <button type="submit" class="btn btn-primary btn-block">Zamawiam</button>
+      <p class="muted small">Płatność: przelew tradycyjny. Dane do przelewu (z numerem zamówienia w tytule) pokażemy zaraz po złożeniu zamówienia i wyślemy na e-mail.</p>
     </form>`;
 }
 function checkoutTotals() {
@@ -400,6 +400,36 @@ function openCheckout() {
   if ($('#cartDrawer')) $('#cartDrawer').hidden = true;
   $('#checkoutModal').hidden = false;
 }
+function copyToClipboard(text, btn) {
+  const done = () => { if (btn) { const o = btn.textContent; btn.textContent = 'Skopiowano ✓'; btn.classList.add('copied'); setTimeout(() => { btn.textContent = o; btn.classList.remove('copied'); }, 1600); } };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else { fallbackCopy(text, done); }
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand('copy'); done && done(); } catch {}
+  document.body.removeChild(ta);
+}
+function paymentInstructionsHtml(pay) {
+  if (!pay) return '';
+  const acc = String(pay.account || '');
+  const accPlain = acc.replace(/\s/g, '');
+  const row = (label, shown, copyVal) =>
+    `<div class="pay-row"><div class="pay-cell"><span class="pay-label">${label}</span><span class="pay-val">${shown}</span></div>` +
+    `<button class="pay-copy" type="button" data-copy="${copyVal.replace(/"/g, '&quot;')}">Kopiuj</button></div>`;
+  return `<div class="pay-instr">
+      <h4>Dokończ zakup — opłać przelewem</h4>
+      <p class="muted small">Wykonaj zwykły przelew na poniższe dane. W tytule koniecznie podaj numer zamówienia. Zamówienie realizujemy po zaksięgowaniu wpłaty.</p>
+      ${row('Odbiorca', pay.recipient, pay.recipient)}
+      ${row('Nr konta' + (pay.bank ? ' (' + pay.bank + ')' : ''), acc, accPlain)}
+      ${row('Tytuł przelewu', pay.title, pay.title)}
+      ${row('Kwota', money(pay.amount), Number(pay.amount).toFixed(2))}
+      <button class="btn btn-ghost btn-block pay-copy" type="button" style="margin-top:10px" data-copy="Odbiorca: ${pay.recipient}\nNr konta: ${accPlain}\nTytuł: ${pay.title}\nKwota: ${Number(pay.amount).toFixed(2)} PLN">Kopiuj wszystkie dane</button>
+    </div>`;
+}
 async function submitOrder(e) {
   e.preventDefault();
   const form = e.target;
@@ -428,9 +458,11 @@ async function submitOrder(e) {
         <h3>Dziękujemy za zamówienie!</h3>
         <p class="muted">Numer zamówienia:</p>
         <p class="order-id">${data.orderId}</p>
-        <p class="muted" style="margin-top:10px">Na podany e-mail wyślemy potwierdzenie.<br>Kwota: <strong>${money(data.total)}</strong></p>
-        <button class="btn btn-primary" style="margin-top:18px" data-close-checkout>Wróć do sklepu</button>
+        ${paymentInstructionsHtml(data.payment)}
+        <p class="muted small" style="margin-top:12px">Potwierdzenie wraz z danymi do przelewu wyślemy też na podany e-mail.</p>
+        <button class="btn btn-primary btn-block" style="margin-top:14px" data-close-checkout>Wróć do sklepu</button>
       </div>`;
+    $$('#checkoutContent .pay-copy').forEach((b) => b.addEventListener('click', () => copyToClipboard(b.dataset.copy, b)));
   } catch (e2) {
     err.textContent = e2.message; err.hidden = false;
     btn.disabled = false; btn.textContent = 'Zamawiam i płacę';

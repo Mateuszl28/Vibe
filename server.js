@@ -89,6 +89,15 @@ function variantStock(p, size, color) {
 // Bazowy adres witryny (do SEO: canonical, OG, sitemap). Ustaw przez SITE_URL.
 const SITE_URL = (process.env.SITE_URL || 'https://vibeleszno.com').replace(/\/$/, '');
 
+// Dane do przelewu — instrukcja platnosci pokazywana po zlozeniu zamowienia.
+// UWAGA: ustaw realne dane przez zmienne srodowiskowe (PAY_ACCOUNT, PAY_RECIPIENT, PAY_BANK)
+// albo podmien wartosci domyslne ponizej. Numer konta moze byc z lub bez "PL".
+const PAYMENT = {
+  recipient: process.env.PAY_RECIPIENT || 'Vibe — Mateusz Łagocki',
+  account: process.env.PAY_ACCOUNT || '61 1140 2004 0000 3002 7763 8000',
+  bank: process.env.PAY_BANK || 'mBank'
+};
+
 // ---- Konto administratora (login + haslo z konfiguracji) ----
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
@@ -703,7 +712,16 @@ function handleCreateOrder(req, res, raw, user) {
   }
   console.log(`[ZAMOWIENIE] ${order.id} - ${order.customer.email} - ${order.total} zl${user ? ' (user ' + user.id + ')' : ''}`);
   sendOrderEmails(order); // powiadomienia e-mail (klient + sklep), best-effort
-  return sendJson(res, 201, { ok: true, orderId: order.id, total: order.total });
+  return sendJson(res, 201, {
+    ok: true, orderId: order.id, total: order.total,
+    payment: {
+      recipient: PAYMENT.recipient,
+      account: PAYMENT.account,
+      bank: PAYMENT.bank,
+      title: order.id,
+      amount: order.total
+    }
+  });
 }
 
 // ---- Uwierzytelnianie ----
@@ -872,6 +890,13 @@ function buildOrderEmailText(order) {
   lines.push(`  ${order.customer.address}`);
   if (order.customer.phone) lines.push(`  tel. ${order.customer.phone}`);
   lines.push(`  ${order.customer.email}`);
+  lines.push('');
+  lines.push('--- PŁATNOŚĆ (przelew tradycyjny) ---');
+  lines.push(`Odbiorca: ${PAYMENT.recipient}`);
+  lines.push(`Nr konta${PAYMENT.bank ? ' (' + PAYMENT.bank + ')' : ''}: ${PAYMENT.account}`);
+  lines.push(`Tytuł przelewu: ${order.id}`);
+  lines.push(`Kwota: ${money(order.total)}`);
+  lines.push('Zamówienie realizujemy po zaksięgowaniu wpłaty.');
   return lines.join('\n') + '\n';
 }
 
