@@ -86,7 +86,7 @@ function variantStock(p, size, color) {
 }
 
 // Bazowy adres witryny (do SEO: canonical, OG, sitemap). Ustaw przez SITE_URL.
-const SITE_URL = (process.env.SITE_URL || `http://85.215.197.199:${PORT}`).replace(/\/$/, '');
+const SITE_URL = (process.env.SITE_URL || 'https://vibeleszno.com').replace(/\/$/, '');
 
 // ---- Konto administratora (login + haslo z konfiguracji) ----
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
