@@ -93,7 +93,7 @@ const SITE_URL = (process.env.SITE_URL || 'https://vibeleszno.com').replace(/\/$
 // UWAGA: ustaw realne dane przez zmienne srodowiskowe (PAY_ACCOUNT, PAY_RECIPIENT, PAY_BANK)
 // albo podmien wartosci domyslne ponizej. Numer konta moze byc z lub bez "PL".
 const PAYMENT = {
-  recipient: process.env.PAY_RECIPIENT || 'Vibe — Mateusz Łagocki',
+  recipient: process.env.PAY_RECIPIENT || 'VIP Nieruchomości Paweł Domagała',
   account: process.env.PAY_ACCOUNT || '61 1140 2004 0000 3002 7763 8000',
   bank: process.env.PAY_BANK || 'mBank'
 };

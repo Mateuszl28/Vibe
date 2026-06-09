@@ -285,6 +285,93 @@ async function initAdmin() {
     toast('Wyeksportowano plik kurierski');
   });
 
+  // Raport finansowy — dochód, liczba zamówień, rozbicie wg statusu i dnia (CSV)
+  $('#exportFinance').addEventListener('click', () => {
+    const list = getFilteredOrders();
+    if (!list.length) { toast('Brak zamówień do raportu'); return; }
+    const valid = list.filter((o) => o.status !== 'anulowane');
+    const cancelled = list.filter((o) => o.status === 'anulowane');
+    const revenue = valid.reduce((s, o) => s + o.total, 0);
+    const avg = valid.length ? revenue / valid.length : 0;
+    const byStatus = {};
+    list.forEach((o) => { (byStatus[o.status] = byStatus[o.status] || { count: 0, sum: 0 }); byStatus[o.status].count++; byStatus[o.status].sum += o.total; });
+    const byDay = {};
+    valid.forEach((o) => { const iso = new Date(o.createdAt).toISOString().slice(0, 10); (byDay[iso] = byDay[iso] || { count: 0, sum: 0 }); byDay[iso].count++; byDay[iso].sum += o.total; });
+    const rows = [];
+    rows.push(['RAPORT FINANSOWY VIBE']);
+    rows.push(['Wygenerowano', new Date().toLocaleString('pl-PL')]);
+    rows.push([]);
+    rows.push(['PODSUMOWANIE']);
+    rows.push(['Liczba zamówień (wszystkie)', list.length]);
+    rows.push(['Liczba zamówień (bez anulowanych)', valid.length]);
+    rows.push(['Anulowane', cancelled.length]);
+    rows.push(['Dochód / obrót (zł)', revenue.toFixed(2)]);
+    rows.push(['Średnia wartość zamówienia (zł)', avg.toFixed(2)]);
+    rows.push([]);
+    rows.push(['WG STATUSU', 'Liczba', 'Suma (zł)']);
+    Object.keys(byStatus).forEach((s) => rows.push([s, byStatus[s].count, byStatus[s].sum.toFixed(2)]));
+    rows.push([]);
+    rows.push(['WG DNIA (bez anulowanych)', 'Liczba', 'Dochód (zł)']);
+    Object.keys(byDay).sort().forEach((iso) => rows.push([new Date(iso).toLocaleDateString('pl-PL'), byDay[iso].count, byDay[iso].sum.toFixed(2)]));
+    downloadCsv(rows, 'raport-finansowy-vibe.csv');
+    toast('Wyeksportowano raport finansowy');
+  });
+
+  // Eksport zamówień do PDF — czytelna tabela (okno druku -> Zapisz jako PDF)
+  $('#exportPdf').addEventListener('click', () => {
+    const list = getFilteredOrders();
+    if (!list.length) { toast('Brak zamówień do PDF'); return; }
+    const valid = list.filter((o) => o.status !== 'anulowane');
+    const revenue = valid.reduce((s, o) => s + o.total, 0);
+    const w = window.open('', '_blank');
+    if (!w) { toast('Pozwól na wyskakujące okna, by zapisać PDF'); return; }
+    const body = list.map((o, idx) => {
+      const items = o.items.map((i) => `${esc(i.name)} ${esc(i.size)}/${esc(i.color)} ×${i.qty}`).join('<br>');
+      return `<tr class="${idx % 2 ? 'alt' : ''}">
+        <td class="nr">${esc(o.id)}</td>
+        <td>${esc(new Date(o.createdAt).toLocaleString('pl-PL'))}</td>
+        <td>${esc(o.status)}</td>
+        <td>${esc(o.customer.name)}<br><span class="sub">${esc(o.customer.email)}${o.customer.phone ? ' · ' + esc(o.customer.phone) : ''}</span></td>
+        <td>${items}</td>
+        <td class="r">${money(o.total)}</td>
+      </tr>`;
+    }).join('');
+    w.document.write(`<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8"><title>Zamówienia VIBE</title>
+      <style>
+        @page { size: A4 landscape; margin: 14mm; }
+        * { box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; color: #16181d; margin: 0; }
+        h1 { margin: 0 0 2px; font-size: 20px; }
+        .meta { color: #555; font-size: 12px; margin-bottom: 14px; }
+        .summary { display: flex; gap: 26px; margin: 12px 0 16px; font-size: 13px; }
+        .summary b { font-size: 16px; display: block; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        thead th { background: #16181d; color: #fff; text-align: left; padding: 9px 8px; }
+        td { padding: 8px; border-bottom: 1px solid #ddd; vertical-align: top; }
+        tr.alt td { background: #f6f6f4; }
+        .r { text-align: right; white-space: nowrap; }
+        .nr { font-weight: 700; white-space: nowrap; }
+        .sub { color: #666; font-size: 11px; }
+        tfoot td { border-top: 2px solid #16181d; font-weight: 700; font-size: 13px; padding-top: 10px; }
+        tr { break-inside: avoid; }
+      </style></head><body>
+      <h1>VIBE — zestawienie zamówień</h1>
+      <div class="meta">Wygenerowano: ${esc(new Date().toLocaleString('pl-PL'))}</div>
+      <div class="summary">
+        <div>Liczba zamówień<b>${list.length}</b></div>
+        <div>Bez anulowanych<b>${valid.length}</b></div>
+        <div>Dochód (bez anulowanych)<b>${money(revenue)}</b></div>
+      </div>
+      <table>
+        <thead><tr><th>Nr</th><th>Data</th><th>Status</th><th>Klient</th><th>Produkty</th><th class="r">Suma</th></tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr><td colspan="5">Dochód razem (bez anulowanych) — ${valid.length} zam.</td><td class="r">${money(revenue)}</td></tr></tfoot>
+      </table>
+      <script>window.onload=function(){window.print()}<\/script></body></html>`);
+    w.document.close();
+    toast('Otwarto podgląd PDF');
+  });
+
   // Notatka do zamówienia + druk
   function printOrder(o) {
     const items = o.items.map((i) => `<tr><td>${esc(i.name)} (${esc(i.size)}/${esc(i.color)})</td><td>${i.qty}</td><td>${money(i.lineTotal)}</td></tr>`).join('');
