@@ -50,9 +50,9 @@ let PRODUCTS = db.getAllProducts();
 
 // Domyslne ustawienia sklepu (edytowalne z panelu admina)
 db.seedSettings({
-  free_shipping_threshold: '200',
+  free_shipping_threshold: '0',
   shipping_cost: '14.99',
-  announce_text: 'Darmowa dostawa od 200 zł  ·  30 dni na zwrot  ·  Bezpieczne płatności',
+  announce_text: 'Wysyłka 48h  ·  30 dni na zwrot  ·  Bezpieczne płatności',
   contact_email: 'kontakt@vibeleszno.com',
   contact_phone: '+48 665 799 919'
 });
@@ -555,7 +555,7 @@ function handleCreateOrder(req, res, raw, user) {
   const settings = db.getSettings();
   const threshold = parseFloat(settings.free_shipping_threshold) || 0;
   const shipCost = parseFloat(settings.shipping_cost) || 0;
-  const shipping = total >= threshold ? 0 : shipCost;
+  const shipping = (threshold > 0 && total >= threshold) ? 0 : shipCost;
 
   let discount = 0;
   let discountCode = '';
