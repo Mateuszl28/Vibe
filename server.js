@@ -672,11 +672,17 @@ function encHeader(s) { return `=?UTF-8?B?${b64(s)}?=`; }
 // Tresc base64, lamana co 76 znakow (unikamy problemow z dlugimi liniami / kropkami)
 function b64Body(s) { return b64(s).replace(/(.{76})/g, '$1\r\n'); }
 
+// Rozbicie listy odbiorcow "a@x, b@y" -> ['a@x','b@y']
+function parseRecipients(to) {
+  return String(to || '').split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 function buildMail({ fromName, from, to, replyTo, subject, text }) {
   const date = new Date().toUTCString().replace(/GMT$/, '+0000');
+  const toHeader = parseRecipients(to).map((a) => `<${a}>`).join(', ');
   const lines = [
     `From: ${encHeader(fromName)} <${from}>`,
-    `To: <${to}>`,
+    `To: ${toHeader}`,
     replyTo ? `Reply-To: <${replyTo}>` : null,
     `Subject: ${encHeader(subject)}`,
     `Date: ${date}`,
@@ -732,8 +738,13 @@ function smtpSend({ from, to, replyTo, subject, text, fromName }) {
         if (await expect() !== 235) throw new Error('Logowanie SMTP nieudane (zle haslo?).');
         send(`MAIL FROM:<${from}>`);
         if (await expect() !== 250) throw new Error('MAIL FROM odrzucone.');
-        send(`RCPT TO:<${to}>`);
-        { const c = await expect(); if (c !== 250 && c !== 251) throw new Error('RCPT TO odrzucone.'); }
+        const rcpts = parseRecipients(to);
+        if (!rcpts.length) throw new Error('Brak odbiorcy (CONTACT_TO).');
+        for (const rcpt of rcpts) {
+          send(`RCPT TO:<${rcpt}>`);
+          const c = await expect();
+          if (c !== 250 && c !== 251) throw new Error(`RCPT TO odrzucone (${rcpt}).`);
+        }
         send('DATA');
         if (await expect() !== 354) throw new Error('DATA odrzucone.');
         socket.write(buildMail({ fromName, from, to, replyTo, subject, text }) + '\r\n.\r\n');
