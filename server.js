@@ -52,7 +52,7 @@ db.seedSettings({
   free_shipping_threshold: '200',
   shipping_cost: '14.99',
   announce_text: 'Darmowa dostawa od 200 zł  ·  30 dni na zwrot  ·  Bezpieczne płatności',
-  contact_email: 'kontakt@vibe.example',
+  contact_email: 'kontakt@vibeleszno.com',
   contact_phone: '+48 600 000 000'
 });
 
