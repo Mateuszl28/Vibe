@@ -251,18 +251,85 @@ function serverCard(p) {
 }
 function buildCatalogHtml() { return PRODUCTS.map((p) => serverCard(p)).join(''); }
 
+// ---- SEO: FAQ (jedno zrodlo prawdy dla widocznej tresci i schematu FAQPage) ----
+const FAQ = [
+  {
+    q: 'Jak dobrać rozmiar bluzy lub koszulki Vibe?',
+    a: 'W każdej karcie produktu znajdziesz dostępne rozmiary od S do XXL. Dokładne wymiary w centymetrach (obwód klatki, długość) zebraliśmy w <a href="/tabela-rozmiarow">tabeli rozmiarów</a>. Jeśli wahasz się między dwoma rozmiarami, przy oversize wybierz mniejszy, a przy klasycznym kroju — większy.'
+  },
+  {
+    q: 'Ile kosztuje i jak długo trwa dostawa?',
+    a: 'Zamówienia złożone do 13:00 w dni robocze wysyłamy tego samego dnia — kurierem lub do paczkomatu. Czas doręczenia to zwykle 1–2 dni robocze. Szczegóły i koszty znajdziesz na stronie <a href="/dostawa-zwroty">Dostawa i zwroty</a>.'
+  },
+  {
+    q: 'Czy mogę zwrócić lub wymienić zamówiony produkt?',
+    a: 'Tak. Masz 30 dni na zwrot bez podawania przyczyny. Wystarczy, że produkt jest nieużywany i z metką. Zasady zwrotów i wymiany opisaliśmy w sekcji <a href="/dostawa-zwroty">Dostawa i zwroty</a>.'
+  },
+  {
+    q: 'Z jakiego materiału uszyte są ubrania Vibe?',
+    a: 'Stawiamy na naturalną, gęstą bawełnę. Koszulki to 100% oddychającej bawełny, a bluzy mają mocny, miękki materiał z podwójnym kapturem. Kolory nie blakną po praniu, a szwy są wzmocnione.'
+  },
+  {
+    q: 'Czy Vibe to sklep z Leszna?',
+    a: 'Tak, Vibe to polska marka odzieżowa z okolic Leszna (Wilkowice, ul. Pszenna 30). Wysyłamy zamówienia w całej Polsce, a klientów z Leszna i okolic obsługujemy szczególnie szybko.'
+  },
+  {
+    q: 'Jak skontaktować się ze sklepem?',
+    a: 'Napisz na kontakt@vibeleszno.com, zadzwoń pod +48 665 799 919 (pn–pt 9:00–17:00) lub skorzystaj z formularza na stronie <a href="/kontakt">Kontakt</a>.'
+  }
+];
+function stripTags(s) { return s.replace(/<[^>]+>/g, ''); }
+function buildFaqHtml() {
+  const items = FAQ.map((f) =>
+    `      <details class="faq-item">\n        <summary>${f.q}</summary>\n        <div class="faq-answer"><p>${f.a}</p></div>\n      </details>`
+  ).join('\n');
+  return `<section class="container page-wrap" aria-label="Najczęściej zadawane pytania">\n    <div class="content">\n      <h2>Najczęściej zadawane pytania</h2>\n${items}\n    </div>\n  </section>`;
+}
+function buildFaqJsonLd() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: FAQ.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: stripTags(f.a) }
+    }))
+  };
+}
+
 // ---- SEO: dane strukturalne JSON-LD ----
 function buildJsonLd() {
   const store = {
     '@context': 'https://schema.org',
     '@type': 'Store',
     name: 'Vibe',
-    description: 'Sklep ze streetwearem premium — bluzy i koszulki.',
+    description: 'Sklep ze streetwearem premium — bluzy i koszulki. Leszno i okolice.',
     url: SITE_URL + '/',
-    image: SITE_URL + '/img/og-cover.svg',
-    logo: SITE_URL + '/img/favicon.svg',
+    image: SITE_URL + '/img/logo.jpg',
+    logo: SITE_URL + '/img/logo.jpg',
     priceRange: '79-249 zł',
     currenciesAccepted: 'PLN',
+    paymentAccepted: 'Przelew, BLIK, karta płatnicza',
+    email: 'kontakt@vibeleszno.com',
+    telephone: '+48665799919',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: 'ul. Pszenna 30',
+      postalCode: '64-115',
+      addressLocality: 'Wilkowice',
+      addressRegion: 'wielkopolskie',
+      addressCountry: 'PL'
+    },
+    areaServed: [
+      { '@type': 'City', name: 'Leszno' },
+      { '@type': 'City', name: 'Wilkowice' }
+    ],
+    openingHoursSpecification: [{
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      opens: '09:00',
+      closes: '17:00'
+    }],
     sameAs: [
       'https://instagram.com/vibe',
       'https://tiktok.com/@vibe',
@@ -280,17 +347,21 @@ function buildJsonLd() {
         name: p.name,
         category: p.category === 'bluza' ? 'Bluzy' : 'Koszulki',
         description: p.description,
-        url: SITE_URL + '/?produkt=' + p.id,
+        image: p.image ? SITE_URL + p.image : SITE_URL + '/img/produkt/' + p.id + '.svg',
+        brand: { '@type': 'Brand', name: 'Vibe' },
+        sku: String(p.id),
+        url: SITE_URL + '/produkt/' + p.id,
         offers: {
           '@type': 'Offer',
           price: p.price.toFixed(2),
           priceCurrency: 'PLN',
-          availability: 'https://schema.org/InStock'
+          availability: availableStock(p) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+          url: SITE_URL + '/produkt/' + p.id
         }
       }
     }))
   };
-  return `<script type="application/ld+json">${JSON.stringify([store, itemList])}</script>`;
+  return `<script type="application/ld+json">${JSON.stringify([store, itemList, buildFaqJsonLd()])}</script>`;
 }
 
 // Render szablonu HTML z podstawieniem placeholderow SEO (cache w pamieci).
@@ -302,6 +373,7 @@ function renderTemplate(absPath) {
   if (html.includes('__ANNOUNCE__')) html = html.replace(/__ANNOUNCE__/g, esc(db.getSettings().announce_text || ''));
   if (html.includes('__JSONLD__')) html = html.replace('__JSONLD__', buildJsonLd());
   if (html.includes('__CATALOG__')) html = html.replace('__CATALOG__', buildCatalogHtml());
+  if (html.includes('__FAQ__')) html = html.replace('__FAQ__', buildFaqHtml());
   html = html.replace('</body>', COOKIE_HTML + '</body>');
   renderCache[absPath] = html;
   return html;
@@ -352,12 +424,13 @@ function buildProductJsonLd(p) {
     image: p.image ? SITE_URL + p.image : SITE_URL + '/img/produkt/' + p.id + '.svg',
     category: p.category === 'bluza' ? 'Bluzy' : 'Koszulki',
     brand: { '@type': 'Brand', name: 'Vibe' },
+    sku: String(p.id),
     color: p.colors.join(', '),
     offers: {
       '@type': 'Offer',
       price: p.price.toFixed(2),
       priceCurrency: 'PLN',
-      availability: 'https://schema.org/InStock',
+      availability: availableStock(p) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       url: SITE_URL + '/produkt/' + p.id
     }
   };
@@ -404,7 +477,7 @@ function getProductHtml(p) {
     P_CAT: esc(catLabel),
     P_PRICE: p.price.toFixed(2).replace('.', ',') + ' zł',
     P_IMG: buildGallery(p),
-    P_OGIMG: p.image ? SITE_URL + p.image : SITE_URL + '/img/produkt/' + p.id + '.svg',
+    P_OGIMG: p.image ? SITE_URL + p.image : SITE_URL + '/img/logo.jpg',
     P_SIZES: sizeOpts,
     P_COLORS: colorOpts,
     P_RATING: ratingHtml,
@@ -438,10 +511,14 @@ function refreshProducts() {
 
 const ROBOTS_TXT = `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
 function buildSitemap() {
-  const urls = [SITE_URL + '/']
-    .concat(Object.keys(PAGES).map((slug) => SITE_URL + slug))
-    .concat(PRODUCTS.map((p) => SITE_URL + '/produkt/' + p.id));
-  const body = urls.map((u) => `  <url><loc>${u}</loc><changefreq>weekly</changefreq></url>`).join('\n');
+  const lastmod = new Date().toISOString().slice(0, 10);
+  // [loc, changefreq, priority]
+  const entries = [[SITE_URL + '/', 'daily', '1.0']]
+    .concat(PRODUCTS.map((p) => [SITE_URL + '/produkt/' + p.id, 'weekly', '0.8']))
+    .concat(Object.keys(PAGES).map((slug) => [SITE_URL + slug, 'monthly', '0.5']));
+  const body = entries.map(([loc, cf, pr]) =>
+    `  <url><loc>${loc}</loc><lastmod>${lastmod}</lastmod><changefreq>${cf}</changefreq><priority>${pr}</priority></url>`
+  ).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>`;
 }
 
