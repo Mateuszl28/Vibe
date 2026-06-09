@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/styles.css?v=21" />
+  <link rel="stylesheet" href="/css/styles.css?v=22" />
 </head>
 <body data-page="admin">
   <header class="site-header">
@@ -108,11 +108,10 @@
             </div>
             <label>Opis<textarea name="description" rows="2" required minlength="3"></textarea></label>
             <div class="img-uploader">
-              <div class="preview" id="imgPreview"><div class="ph">Brak zdjęcia</div></div>
+              <div class="img-gallery" id="imgGallery"><div class="ph">Brak zdjęć</div></div>
               <div>
-                <input type="file" id="imgFile" accept="image/png,image/jpeg,image/webp" />
-                <p class="muted small">PNG/JPG/WebP, max 4 MB. Zdjęcie zapisuje się dla <strong>edytowanego</strong> produktu (najpierw zapisz nowy produkt, potem dodaj zdjęcie przez „Edytuj").</p>
-                <button type="button" class="btn btn-ghost" id="imgRemove" hidden style="padding:6px 12px;margin-top:6px">Usuń zdjęcie</button>
+                <input type="file" id="imgFile" accept="image/png,image/jpeg,image/webp" multiple />
+                <p class="muted small">PNG/JPG/WebP, max 4 MB każde, do <strong>6 zdjęć</strong>. Pierwsze zdjęcie jest główne. Zdjęcia zapisują się dla <strong>edytowanego</strong> produktu (najpierw zapisz nowy produkt, potem dodaj zdjęcia przez „Edytuj"). Kliknij ✕, aby usunąć.</p>
               </div>
             </div>
             <p class="form-error" id="prodError" hidden></p>
@@ -212,6 +211,6 @@
   </div>
 
   <div class="toast" id="toast" hidden></div>
-  <script src="/js/account.js?v=20"></script>
+  <script src="/js/account.js?v=21"></script>
 </body>
 </html>

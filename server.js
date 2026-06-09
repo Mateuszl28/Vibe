@@ -181,6 +181,17 @@ function productTileSvg(p) {
     <text x="160" y="350" text-anchor="middle" font-family="Sora, Arial" font-size="24" font-weight="800" fill="${contrast(p.color)}" opacity="0.92">${esc(p.name)}</text>
   </svg>`;
 }
+// Galeria zdjec na stronie produktu: glowne zdjecie + miniatury (przelaczane w JS)
+function buildGallery(p) {
+  const imgs = (p.images && p.images.length) ? p.images : (p.image ? [p.image] : []);
+  if (!imgs.length) return productTileSvg(p);
+  const main = `<div class="gallery-main"><img class="gallery-photo" id="galleryMain" src="${esc(imgs[0])}" alt="${esc(p.name)}"></div>`;
+  if (imgs.length === 1) return main;
+  const thumbs = imgs.map((src, i) =>
+    `<button type="button" class="gallery-thumb${i === 0 ? ' active' : ''}" data-src="${esc(src)}" aria-label="Zdjęcie ${i + 1}"><img src="${esc(src)}" alt=""></button>`
+  ).join('');
+  return main + `<div class="gallery-thumbs">${thumbs}</div>`;
+}
 // Obrazek Open Graph per produkt (1200x630)
 function productOgSvg(p) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
@@ -392,7 +403,7 @@ function getProductHtml(p) {
     P_DESC: esc(p.description),
     P_CAT: esc(catLabel),
     P_PRICE: p.price.toFixed(2).replace('.', ',') + ' zł',
-    P_IMG: p.image ? `<img class="gallery-photo" src="${esc(p.image)}" alt="${esc(p.name)}">` : productTileSvg(p),
+    P_IMG: buildGallery(p),
     P_OGIMG: p.image ? SITE_URL + p.image : SITE_URL + '/img/produkt/' + p.id + '.svg',
     P_SIZES: sizeOpts,
     P_COLORS: colorOpts,
@@ -1184,28 +1195,44 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Nie ma zamowienia.' });
         } catch (err) { return sendJson(res, 400, { error: err.message }); }
       }
-      // Upload / usuniecie zdjecia produktu
+      // Zdjecia produktu: dodanie / usuniecie jednego / usuniecie wszystkich
       if (method === 'POST' && url === '/api/admin/products/image') {
         try {
           const p = JSON.parse(await readBody(req, 7e6) || '{}');
           const prod = db.getProductById(String(p.id || ''));
           if (!prod) return sendJson(res, 404, { error: 'Nie ma takiego produktu.' });
+          let images = Array.isArray(prod.images) ? prod.images.slice() : (prod.image ? [prod.image] : []);
+          const unlinkByPath = (pub) => { try { fs.unlinkSync(path.join(UPLOADS_DIR, path.basename(String(pub)))); } catch {} };
+
+          // usuniecie wszystkich zdjec
           if (p.remove) {
+            images.forEach(unlinkByPath);
             for (const e of ['png', 'jpg', 'webp']) { try { fs.unlinkSync(path.join(UPLOADS_DIR, prod.id + '.' + e)); } catch {} }
-            db.setProductImage(prod.id, null);
+            db.setProductImages(prod.id, []);
             refreshProducts();
-            return sendJson(res, 200, { ok: true, image: null });
+            return sendJson(res, 200, { ok: true, images: [] });
           }
+          // usuniecie jednego zdjecia (po sciezce)
+          if (p.removeImage) {
+            const target = String(p.removeImage);
+            if (images.includes(target)) { unlinkByPath(target); images = images.filter((x) => x !== target); }
+            db.setProductImages(prod.id, images);
+            refreshProducts();
+            return sendJson(res, 200, { ok: true, images });
+          }
+          // dodanie nowego zdjecia
           const m = /^data:image\/(png|jpe?g|webp);base64,(.+)$/i.exec(p.image || '');
           if (!m) return sendJson(res, 400, { error: 'Nieobslugiwany format (png/jpg/webp).' });
+          if (images.length >= 6) return sendJson(res, 400, { error: 'Maksymalnie 6 zdjec na produkt.' });
           const ext = m[1].toLowerCase() === 'jpeg' ? 'jpg' : m[1].toLowerCase();
           const buf = Buffer.from(m[2], 'base64');
           if (buf.length > 4 * 1024 * 1024) return sendJson(res, 400, { error: 'Zdjecie za duze (max 4 MB).' });
-          for (const e of ['png', 'jpg', 'webp']) { try { fs.unlinkSync(path.join(UPLOADS_DIR, prod.id + '.' + e)); } catch {} }
-          fs.writeFileSync(path.join(UPLOADS_DIR, prod.id + '.' + ext), buf);
-          db.setProductImage(prod.id, '/uploads/' + prod.id + '.' + ext);
+          const fname = `${prod.id}-${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}.${ext}`;
+          fs.writeFileSync(path.join(UPLOADS_DIR, fname), buf);
+          images.push('/uploads/' + fname);
+          db.setProductImages(prod.id, images);
           refreshProducts();
-          return sendJson(res, 201, { ok: true, image: '/uploads/' + prod.id + '.' + ext });
+          return sendJson(res, 201, { ok: true, images });
         } catch (err) { return sendJson(res, 400, { error: err.message }); }
       }
       // Moderacja opinii

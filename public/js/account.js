@@ -477,7 +477,7 @@ async function initAdmin() {
       $('#prodFormTitle').textContent = 'Edytuj: ' + p.name;
       $('#prodSubmit').textContent = 'Zapisz zmiany';
       $('#prodCancel').hidden = false; $('#prodError').hidden = true;
-      setPreview(p.image ? p.image + '?t=' + Date.now() : null);
+      renderImages(p.images && p.images.length ? p.images : (p.image ? [p.image] : []));
       renderVariantsEditor(p);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -507,31 +507,45 @@ async function initAdmin() {
     else { err.textContent = data.error || 'Błąd zapisu'; err.hidden = false; }
   });
 
-  // ----- Zdjecie produktu -----
-  const imgFile = $('#imgFile'), imgRemove = $('#imgRemove');
-  function setPreview(src) {
-    $('#imgPreview').innerHTML = src ? `<img src="${src}" alt="">` : '<div class="ph">Brak zdjęcia</div>';
-    imgRemove.hidden = !src;
+  // ----- Zdjecia produktu (galeria wielu) -----
+  const imgFile = $('#imgFile'), imgGallery = $('#imgGallery');
+  let currentImages = [];
+  function renderImages(images) {
+    currentImages = Array.isArray(images) ? images : [];
+    if (!currentImages.length) { imgGallery.innerHTML = '<div class="ph">Brak zdjęć</div>'; return; }
+    imgGallery.innerHTML = currentImages.map((src, i) =>
+      `<div class="img-thumb">${i === 0 ? '<span class="img-main-badge">główne</span>' : ''}` +
+      `<img src="${src}?t=${Date.now()}" alt="">` +
+      `<button type="button" class="img-del" data-src="${src}" aria-label="Usuń zdjęcie">✕</button></div>`
+    ).join('');
   }
+  // wstecznie: niektore miejsca wolaja setPreview — kierujemy je na renderImages
+  function setPreview(src) { renderImages(src ? [src] : []); }
+
   imgFile.addEventListener('change', async () => {
     const id = pForm.editId.value;
-    if (!id) { toast('Najpierw zapisz produkt, potem dodaj zdjęcie (Edytuj).'); imgFile.value = ''; return; }
-    const f = imgFile.files[0]; if (!f) return;
-    if (f.size > 4 * 1024 * 1024) { toast('Zdjęcie za duże (max 4 MB).'); imgFile.value = ''; return; }
-    const dataUrl = await new Promise((resv) => { const r = new FileReader(); r.onload = () => resv(r.result); r.readAsDataURL(f); });
-    const { ok, data } = await api('/api/admin/products/image', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, image: dataUrl })
-    });
-    if (ok) { setPreview(data.image + '?t=' + Date.now()); toast('Dodano zdjęcie'); loadAdminProducts(); }
-    else toast(data.error || 'Błąd zdjęcia');
+    if (!id) { toast('Najpierw zapisz produkt, potem dodaj zdjęcia (Edytuj).'); imgFile.value = ''; return; }
+    const files = Array.from(imgFile.files || []);
     imgFile.value = '';
+    for (const f of files) {
+      if (f.size > 4 * 1024 * 1024) { toast(`„${f.name}" za duże (max 4 MB).`); continue; }
+      const dataUrl = await new Promise((resv) => { const r = new FileReader(); r.onload = () => resv(r.result); r.readAsDataURL(f); });
+      const { ok, data } = await api('/api/admin/products/image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, image: dataUrl })
+      });
+      if (ok) renderImages(data.images);
+      else { toast(data.error || 'Błąd zdjęcia'); break; }
+    }
+    toast('Zapisano zdjęcia'); loadAdminProducts();
   });
-  imgRemove.addEventListener('click', async () => {
+  imgGallery.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.img-del'); if (!btn) return;
     const id = pForm.editId.value; if (!id) return;
-    const { ok } = await api('/api/admin/products/image', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, remove: true })
+    const { ok, data } = await api('/api/admin/products/image', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, removeImage: btn.dataset.src })
     });
-    if (ok) { setPreview(null); toast('Usunięto zdjęcie'); loadAdminProducts(); }
+    if (ok) { renderImages(data.images); toast('Usunięto zdjęcie'); loadAdminProducts(); }
+    else toast(data.error || 'Błąd');
   });
 
   // ----- KODY RABATOWE -----

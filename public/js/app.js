@@ -485,6 +485,15 @@ document.addEventListener('click', (e) => {
     return;
   }
 
+  // galeria produktu: klik w miniature przelacza glowne zdjecie
+  const thumb = t.closest && t.closest('.gallery-thumb');
+  if (thumb) {
+    const main = document.getElementById('galleryMain');
+    if (main) main.src = thumb.dataset.src;
+    document.querySelectorAll('.gallery-thumb').forEach((b) => b.classList.toggle('active', b === thumb));
+    return;
+  }
+
   // dodanie do koszyka ze strony produktu
   if (t.id === 'ppAdd') { ppAddToCart(t.dataset.id); return; }
 
