@@ -786,6 +786,13 @@ const SMTP = {
   to: process.env.CONTACT_TO || process.env.SMTP_USER || ''
 };
 
+// Adresy powiadamiane o NOWYCH ZAMOWIENIACH (skrzynka sklepu).
+// Zawsze dolaczamy vip@vipnieruchomosci.eu (mozna dopisac wiecej przez ORDER_NOTIFY_TO, po przecinku).
+const ORDER_NOTIFY = [...new Set(
+  [SMTP.to, process.env.ORDER_NOTIFY_TO || '', 'vip@vipnieruchomosci.eu']
+    .join(',').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+)].join(', ');
+
 function b64(s) { return Buffer.from(s, 'utf8').toString('base64'); }
 
 // Naglowek z polskimi znakami -> MIME encoded-word (UTF-8 base64)
@@ -934,7 +941,7 @@ function sendOrderEmails(order) {
   smtpSend({
     fromName: 'Vibe — sklep',
     from: SMTP.user,
-    to: SMTP.to,
+    to: ORDER_NOTIFY,
     replyTo: order.customer.email,
     subject: `Nowe zamówienie ${order.id} — ${Number(order.total).toFixed(2)} zł`,
     text: `Nowe zamówienie w sklepie:\n\n${summary}`
