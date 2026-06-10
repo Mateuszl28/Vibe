@@ -410,7 +410,14 @@
   const MAPS = { en: EN, de: DE };
   const SKIP_TAGS = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, CODE: 1, PRE: 1 };
 
-  function getLang() { try { const l = localStorage.getItem('vibe_lang'); return LANGS.includes(l) ? l : 'pl'; } catch { return 'pl'; } }
+  function getLang() {
+    try {
+      const q = new URLSearchParams(location.search).get('lang');
+      if (LANGS.includes(q)) return q;
+      const l = localStorage.getItem('vibe_lang');
+      return LANGS.includes(l) ? l : 'pl';
+    } catch { return 'pl'; }
+  }
   function tr(lang, key) { if (lang === 'pl') return key; const m = MAPS[lang]; return (m && m[key] != null) ? m[key] : key; }
 
   // t() dla kodu (np. app.js): zwraca tlumaczenie biezacego jezyka
@@ -468,6 +475,13 @@
   function setLang(lang) {
     if (!LANGS.includes(lang)) return;
     try { localStorage.setItem('vibe_lang', lang); } catch {}
+    // Nawigacja do osobnego URL per jezyk (SEO): PL = bez parametru, EN/DE = ?lang=
+    try {
+      const u = new URL(location.href);
+      if (lang === 'pl') u.searchParams.delete('lang');
+      else u.searchParams.set('lang', lang);
+      if (u.href !== location.href) { location.href = u.href; return; }
+    } catch {}
     apply();
   }
 

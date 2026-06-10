@@ -509,6 +509,59 @@ function sendHtml(res, html) {
   res.end(html);
 }
 
+// ---- SEO wielojezyczne (PL/EN/DE): title/description/hreflang/canonical per jezyk ----
+const I18N_HEAD = {
+  en: {
+    '/': { t: 'Vibe — premium hoodies & t-shirts | streetwear online', d: 'Vibe is a premium streetwear shop. Hooded sweatshirts and t-shirts in the finest cotton. Fast shipping, 14-day returns. Wear your vibe.' },
+    '/kontakt': { t: 'Contact | Vibe', d: 'Contact the Vibe shop — write via the form, e-mail kontakt@vibeleszno.com or call. Help Mon–Fri 9:00–17:00.' },
+    '/dostawa-zwroty': { t: 'Shipping & returns | Vibe', d: 'Delivery methods and costs at Vibe and return rules: 14-day returns, no reason needed.' },
+    '/tabela-rozmiarow': { t: 'Size guide | Vibe', d: 'Vibe hoodie and t-shirt size guide (S–XXL): measurements in cm, chest and length. See how to measure correctly.' },
+    '/regulamin': { t: 'Terms & Conditions | Vibe', d: 'Terms and Conditions of the Vibe online shop — ordering, payments, delivery, right of withdrawal (returns) and complaints.' },
+    '/polityka-prywatnosci': { t: 'Privacy policy | Vibe', d: 'Vibe shop privacy policy — what data we collect, why, cookies and your rights (GDPR).' },
+    '/eventy': { t: 'Events | Vibe — Vibe City Festival', d: 'Vibe brand events. Upcoming: Vibe City Festival — connecting generations. See details and buy tickets online.' }
+  },
+  de: {
+    '/': { t: 'Vibe — Premium Hoodies & T-Shirts | Streetwear online', d: 'Vibe ist ein Premium-Streetwear-Shop. Hoodies und T-Shirts aus bester Baumwolle. Schneller Versand, 14 Tage Rückgabe. Trag deinen Vibe.' },
+    '/kontakt': { t: 'Kontakt | Vibe', d: 'Kontaktiere den Vibe-Shop — über das Formular, per E-Mail kontakt@vibeleszno.com oder telefonisch. Hilfe Mo–Fr 9:00–17:00.' },
+    '/dostawa-zwroty': { t: 'Versand & Rückgabe | Vibe', d: 'Versandarten und -kosten bei Vibe sowie Rückgaberegeln: 14 Tage Rückgabe ohne Angabe von Gründen.' },
+    '/tabela-rozmiarow': { t: 'Größentabelle | Vibe', d: 'Größentabelle für Vibe Hoodies und T-Shirts (S–XXL): Maße in cm, Brust und Länge. So misst du richtig.' },
+    '/regulamin': { t: 'AGB | Vibe', d: 'AGB des Vibe-Onlineshops — Bestellung, Zahlung, Versand, Widerrufsrecht (Rückgaben) und Reklamationen.' },
+    '/polityka-prywatnosci': { t: 'Datenschutz | Vibe', d: 'Datenschutzerklärung des Vibe-Shops — welche Daten wir erfassen, warum, Cookies und deine Rechte (DSGVO).' },
+    '/eventy': { t: 'Events | Vibe — Vibe City Festival', d: 'Events der Marke Vibe. Demnächst: Vibe City Festival — Generationen verbinden. Details ansehen und Tickets online kaufen.' }
+  }
+};
+const OG_LOCALE = { pl: 'pl_PL', en: 'en_GB', de: 'de_DE' };
+
+// Wstrzykuje hreflang/canonical/lang oraz (dla EN/DE) tlumaczony title+description.
+function localizePage(html, lang, seoPath) {
+  const loc = SITE_URL + seoPath;
+  const alts =
+    `\n  <link rel="alternate" hreflang="pl" href="${loc}" />` +
+    `\n  <link rel="alternate" hreflang="en" href="${loc}?lang=en" />` +
+    `\n  <link rel="alternate" hreflang="de" href="${loc}?lang=de" />` +
+    `\n  <link rel="alternate" hreflang="x-default" href="${loc}" />` +
+    `\n  <meta property="og:locale:alternate" content="en_GB" />` +
+    `\n  <meta property="og:locale:alternate" content="de_DE" />\n`;
+  // hreflang dodajemy zawsze (rowniez na PL)
+  html = html.replace('</head>', alts + '</head>');
+  if (lang !== 'pl') {
+    html = html.replace('<html lang="pl"', `<html lang="${lang}"`);
+    // canonical -> wersja jezykowa (self-referential)
+    html = html.replace(/(<link rel="canonical" href=")([^"]*)(")/, (m, a, href, c) => a + href + (href.includes('?') ? '&' : '?') + 'lang=' + lang + c);
+    // og:locale
+    html = html.replace('content="pl_PL"', `content="${OG_LOCALE[lang]}"`);
+    // tytul + opis (jesli mamy tlumaczenie dla tej sciezki)
+    const h = I18N_HEAD[lang] && I18N_HEAD[lang][seoPath];
+    if (h) {
+      html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(h.t)}</title>`);
+      html = html.replace(/(<meta name="description" content=")[\s\S]*?(")/, `$1${esc(h.d)}$2`);
+      html = html.replace(/(<meta property="og:title" content=")[\s\S]*?(")/, `$1${esc(h.t)}$2`);
+      html = html.replace(/(<meta property="og:description" content=")[\s\S]*?(")/, `$1${esc(h.d)}$2`);
+    }
+  }
+  return html;
+}
+
 // Uniewaznienie cache stron (po zmianach admina: produkty, ustawienia)
 function clearPageCache() {
   for (const k in renderCache) delete renderCache[k];
@@ -527,10 +580,16 @@ function buildSitemap() {
   const entries = [[SITE_URL + '/', 'daily', '1.0']]
     .concat(PRODUCTS.map((p) => [SITE_URL + '/produkt/' + p.id, 'weekly', '0.8']))
     .concat(Object.keys(PAGES).map((slug) => [SITE_URL + slug, 'monthly', '0.5']));
-  const body = entries.map(([loc, cf, pr]) =>
-    `  <url><loc>${loc}</loc><lastmod>${lastmod}</lastmod><changefreq>${cf}</changefreq><priority>${pr}</priority></url>`
-  ).join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>`;
+  const body = entries.map(([loc, cf, pr]) => {
+    // hreflang: kazda strona ma warianty pl/en/de (+x-default) — Google odkrywa wersje jezykowe
+    const alt =
+      `<xhtml:link rel="alternate" hreflang="pl" href="${loc}"/>` +
+      `<xhtml:link rel="alternate" hreflang="en" href="${loc}?lang=en"/>` +
+      `<xhtml:link rel="alternate" hreflang="de" href="${loc}?lang=de"/>` +
+      `<xhtml:link rel="alternate" hreflang="x-default" href="${loc}"/>`;
+    return `  <url><loc>${loc}</loc><lastmod>${lastmod}</lastmod><changefreq>${cf}</changefreq><priority>${pr}</priority>${alt}</url>`;
+  }).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${body}\n</urlset>`;
 }
 
 // ---- pomocnicze ----
@@ -1024,6 +1083,9 @@ const server = http.createServer(async (req, res) => {
   const url = req.url || '/';
   const method = req.method || 'GET';
   const pathOnly = url.split('?')[0];
+  // Jezyk strony do SEO (?lang=en|de) — wplywa na <html lang>, title/description, canonical, hreflang
+  const langMatch = /[?&]lang=(en|de)\b/.exec(url);
+  const lang = langMatch ? langMatch[1] : 'pl';
 
   // SEO: robots.txt i sitemap.xml
   if (method === 'GET' && pathOnly === '/robots.txt') {
@@ -1037,13 +1099,13 @@ const server = http.createServer(async (req, res) => {
 
   // Strona glowna -> wygenerowany index.html z danymi strukturalnymi
   if (method === 'GET' && (pathOnly === '/' || pathOnly === '/index.html')) {
-    return sendHtml(res, getIndexHtml());
+    return sendHtml(res, localizePage(getIndexHtml(), lang, '/'));
   }
 
   // Osobne podstrony (Pomoc): /dostawa-zwroty, /tabela-rozmiarow, /kontakt
   if (method === 'GET' && PAGES[pathOnly]) {
     try {
-      return sendHtml(res, renderTemplate(path.join(PAGES_DIR, PAGES[pathOnly])));
+      return sendHtml(res, localizePage(renderTemplate(path.join(PAGES_DIR, PAGES[pathOnly])), lang, pathOnly));
     } catch {
       res.writeHead(404); return res.end('404');
     }
@@ -1076,7 +1138,7 @@ const server = http.createServer(async (req, res) => {
     const p = PRODUCTS.find((x) => x.id === id);
     if (!p) { res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end('<h1>404 — nie znaleziono produktu</h1><a href="/">Wróć do sklepu</a>'); }
     try {
-      return sendHtml(res, getProductHtml(p));
+      return sendHtml(res, localizePage(getProductHtml(p), lang, '/produkt/' + p.id));
     } catch (err) {
       console.error('Blad renderowania produktu:', err.message);
       res.writeHead(500); return res.end('500');
