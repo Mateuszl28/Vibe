@@ -91,6 +91,7 @@ function shade(hex, pct) {
 function toast(msg) {
   const t = $('#toast');
   if (!t) return;
+  if (window.VibeI18n) msg = window.VibeI18n.t(msg);
   t.textContent = msg; t.hidden = false;
   clearTimeout(t._timer);
   t._timer = setTimeout(() => { t.hidden = true; }, 2200);
@@ -171,6 +172,7 @@ function initCartPage() {
       <p class="muted small" style="margin-top:8px">Kod rabatowy podasz w następnym kroku.</p>
     </div>
   </div>`;
+  if (window.VibeI18n) window.VibeI18n.apply();
 }
 
 /* ====== WOW: odslanianie przy scrollu ====== */
@@ -329,6 +331,7 @@ function renderCart() {
     }).join('');
   }
   const tot = $('#cartTotal'); if (tot) tot.textContent = money(cartTotal());
+  if (window.VibeI18n) window.VibeI18n.apply();
 }
 
 /* ====== Checkout ====== */
@@ -386,6 +389,7 @@ function renderCheckoutSummary() {
     + `<div class="fs-row"><span>${dmLabel}</span><span>${t.shipping === 0 ? 'gratis 🎉' : money(t.shipping)}</span></div>`
     + (t.discount > 0 ? `<div class="fs-row"><span>Rabat ${appliedDiscount.code}</span><span>-${money(t.discount)}</span></div>` : '')
     + `<div class="fs-row fs-total"><span>Razem</span><span>${money(t.total)}</span></div>`;
+  if (window.VibeI18n) window.VibeI18n.apply();
 }
 async function applyDiscount() {
   const code = ($('#discountInput').value || '').trim();
@@ -490,6 +494,7 @@ async function submitOrder(e) {
         <button class="btn btn-primary btn-block" style="margin-top:14px" data-close-checkout>Wróć do sklepu</button>
       </div>`;
     $$('#checkoutContent .pay-copy').forEach((b) => b.addEventListener('click', () => copyToClipboard(b.dataset.copy, b)));
+    if (window.VibeI18n) window.VibeI18n.apply();
   } catch (e2) {
     err.textContent = e2.message; err.hidden = false;
     btn.disabled = false; btn.textContent = 'Zamawiam i płacę';
