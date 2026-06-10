@@ -257,6 +257,7 @@ function renderProducts() {
     ? list.map((p, i) => cardHtml(p, i)).join('')
     : `<div class="loading">Brak produktów spełniających kryteria${q ? ` „${q}"` : ''}.</div>`;
   applyReveal(grid);
+  if (window.VibeI18n) window.VibeI18n.apply();
 }
 function initShopTools() {
   const search = $('#searchInput'), sort = $('#sortSelect');
@@ -271,6 +272,7 @@ function renderRelated() {
   let list = PRODUCTS.filter(p => p.id !== currentId);
   if (current) list.sort((a, b) => (b.category === current.category) - (a.category === current.category));
   grid.innerHTML = list.slice(0, 4).map((p, i) => cardHtml(p, i)).join('');
+  if (window.VibeI18n) window.VibeI18n.apply();
 }
 
 /* ====== Koszyk ====== */
