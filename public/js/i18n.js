@@ -321,6 +321,26 @@
   ];
   PRODUCTS_EN.forEach((p) => { EN[p.pl] = p.en; });
 
+  // Drobne fragmenty: strona produktu + opinie
+  Object.assign(EN, {
+    '14 dni na zwrot —': '14-day returns —',
+    'tabela rozmiarów': 'size guide',
+    'Brak opinii — bądź pierwszy': 'No reviews yet — be the first',
+    'Brak opinii. Bądź pierwszy, który oceni ten produkt.': 'No reviews yet. Be the first to rate this product.',
+    'Opinię możesz dodać dopiero po zakupie tego produktu.': 'You can add a review only after purchasing this product.',
+    'Zaloguj się': 'Log in', ', aby dodać opinię (po zakupie).': ' to add a review (after purchase).',
+    'Twoja opinia': 'Your review', 'Dodaj opinię': 'Add a review',
+    'Twoja opinia (opcjonalnie)': 'Your review (optional)',
+    'Zaktualizuj opinię': 'Update review', 'Wyślij opinię': 'Submit review',
+    'Nie udało się wczytać opinii.': 'Failed to load reviews.',
+    'Wybierz ocenę (gwiazdki)': 'Choose a rating (stars)', 'Dziękujemy za opinię!': 'Thank you for your review!',
+    'Nie udało się dodać opinii': 'Failed to add the review',
+    // pozostale toasty / drobne
+    'Dziękujemy za zamówienie': 'Thank you for your order', 'Wybierz rozmiar': 'Choose a size', 'Wybierz kolor': 'Choose a colour',
+    'Dodano do ulubionych': 'Added to favourites', 'Usunięto z ulubionych': 'Removed from favourites',
+    'Nie udało się pobrać produktów. Odśwież stronę.': 'Failed to load products. Please refresh the page.'
+  });
+
   const MAPS = { en: EN, de: DE };
   const SKIP_TAGS = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, CODE: 1, PRE: 1 };
 

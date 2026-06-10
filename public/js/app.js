@@ -658,6 +658,7 @@ async function initReviews() {
     formHtml = '<p class="muted review-note"><a href="/logowanie">Zaloguj się</a>, aby dodać opinię (po zakupie).</p>';
   }
   box.innerHTML = listHtml + formHtml;
+  if (window.VibeI18n) window.VibeI18n.apply();
 
   if (data.canReview) {
     let chosen = cur ? cur.rating : 0;
