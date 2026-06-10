@@ -5,7 +5,7 @@ let PRODUCTS = [];
 let currentFilter = 'all';
 let searchQuery = '';
 let sortBy = 'featured';
-let shopSettings = { freeShippingThreshold: 200, shippingCost: 0 };
+let shopSettings = { freeShippingThreshold: 0, shippingCost: 25 };
 let appliedDiscount = null;
 let cart = loadCart();
 

@@ -52,7 +52,7 @@ let PRODUCTS = db.getAllProducts();
 // Domyslne ustawienia sklepu (edytowalne z panelu admina)
 db.seedSettings({
   free_shipping_threshold: '0',
-  shipping_cost: '14.99',
+  shipping_cost: '25.00',
   announce_text: 'Wysyłka 48h  ·  30 dni na zwrot  ·  Bezpieczne płatności',
   contact_email: 'kontakt@vibeleszno.com',
   contact_phone: '+48 665 799 919'
@@ -1261,6 +1261,13 @@ const server = http.createServer(async (req, res) => {
           const allowed = ['nowe', 'w realizacji', 'wyslane', 'zrealizowane', 'anulowane'];
           if (!p.id || !allowed.includes(p.status)) return sendJson(res, 400, { error: 'Niepoprawne dane.' });
           const ok = db.updateOrderStatus(String(p.id), p.status);
+          return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Nie znaleziono zamowienia.' });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      if (method === 'POST' && url === '/api/admin/order-delete') {
+        try {
+          const p = JSON.parse(await readBody(req) || '{}');
+          const ok = db.deleteOrder(String(p.id || ''));
           return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Nie znaleziono zamowienia.' });
         } catch (err) { return sendJson(res, 400, { error: err.message }); }
       }

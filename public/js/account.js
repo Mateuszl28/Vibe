@@ -104,6 +104,7 @@ function orderCard(o, admin) {
       <div style="display:flex;gap:8px;margin-top:6px">
         <button class="btn btn-ghost" data-savenote="${esc(o.id)}" type="button" style="padding:6px 12px">Zapisz notatkę</button>
         <button class="btn btn-ghost" data-print="${esc(o.id)}" type="button" style="padding:6px 12px">Drukuj</button>
+        <button class="btn btn-ghost danger" data-delorder="${esc(o.id)}" type="button" style="padding:6px 12px">Usuń</button>
       </div>
     </div>` : ''}
   </div>`;
@@ -401,6 +402,19 @@ async function initAdmin() {
       else toast(data.error || 'Błąd');
     }
     if (printId) { const o = orders.find((x) => x.id === printId); if (o) printOrder(o); }
+    const delId = e.target.dataset.delorder;
+    if (delId) {
+      if (!confirm(`Usunąć zamówienie ${delId} z bazy? Tej operacji nie można cofnąć.`)) return;
+      const { ok, data } = await api('/api/admin/order-delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: delId })
+      });
+      if (ok) {
+        const i = orders.findIndex((x) => x.id === delId);
+        if (i >= 0) orders.splice(i, 1);
+        renderOrders(); renderDash();
+        toast('Usunięto zamówienie');
+      } else toast(data.error || 'Błąd');
+    }
   });
 
   // ----- KLIENCI / UŻYTKOWNICY -----

@@ -460,6 +460,8 @@ a { color: inherit; text-decoration: none; }
 .prod-actions .edit:hover { border-color: var(--text); }
 .prod-actions .del { color: var(--danger); }
 .prod-actions .del:hover { border-color: var(--danger); }
+.btn-ghost.danger { color: var(--danger); }
+.btn-ghost.danger:hover { border-color: var(--danger); background: #fdecee; }
 @media (max-width: 600px) { .prod-grid { grid-template-columns: 1fr; } }
 
 /* ===== Panel admina: pulpit ===== */
