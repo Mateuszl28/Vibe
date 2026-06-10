@@ -159,7 +159,7 @@ function initCartPage() {
     </div>`;
   }).join('');
   const sub = cartTotal();
-  const ship = sub >= shopSettings.freeShippingThreshold ? 0 : shopSettings.shippingCost;
+  const ship = (shopSettings.freeShippingThreshold > 0 && sub >= shopSettings.freeShippingThreshold) ? 0 : shopSettings.shippingCost;
   box.innerHTML = `<div class="cart-page-grid">
     <div>${items}</div>
     <div class="panel-card">
@@ -356,7 +356,7 @@ function checkoutFormHtml() {
 }
 function checkoutTotals() {
   const sub = cartTotal();
-  const shipping = sub >= shopSettings.freeShippingThreshold ? 0 : shopSettings.shippingCost;
+  const shipping = (shopSettings.freeShippingThreshold > 0 && sub >= shopSettings.freeShippingThreshold) ? 0 : shopSettings.shippingCost;
   let discount = 0;
   if (appliedDiscount) {
     discount = appliedDiscount.type === 'percent' ? sub * (appliedDiscount.value / 100) : appliedDiscount.value;
