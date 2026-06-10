@@ -118,6 +118,7 @@ async function fetchProducts() {
   if (document.body.dataset.page === 'wishlist') initWishlistPage();
   if (document.body.dataset.page === 'cart') initCartPage();
   applyReveal();
+  if (window.VibeI18n) window.VibeI18n.apply();
 }
 
 /* ====== Dostępność wariantu na stronie produktu ====== */
@@ -133,6 +134,7 @@ function updatePpAvailability() {
     note.className = 'pp-stock' + (av <= 0 ? ' soldout' : (av <= 5 ? ' low' : ''));
     note.textContent = av <= 0 ? 'Wybrany wariant niedostępny' : (av <= 5 ? `Zostały ostatnie sztuki: ${av}` : '✔ Dostępny, wysyłka 24h');
   }
+  if (window.VibeI18n) window.VibeI18n.apply();
 }
 
 /* ====== Strona ulubionych ====== */
