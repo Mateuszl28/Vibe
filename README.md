@@ -4,8 +4,8 @@ Lekki sklep internetowy w **czystym Node.js** (zero zależności — nie trzeba 
 Katalog produktów, modal produktu z wyborem rozmiaru/koloru, koszyk (localStorage)
 i składanie zamówień z walidacją po stronie serwera.
 
-> **Adres docelowy:** `http://85.215.197.199:8080` — osobny port na istniejącym serwerze,
-> działa obok aktualnego web servera, nic nie nadpisuje.
+> **Adres produkcyjny:** `https://vibeleszno.com` (HTTPS). Aplikacja Node działa wewnętrznie
+> na porcie **8080**; domena i HTTPS obsługiwane przed nią. Wersje językowe: `?lang=en`, `?lang=de`.
 
 ---
 
@@ -13,8 +13,10 @@ i składanie zamówień z walidacją po stronie serwera.
 
 - **Backend:** Node.js (wbudowany moduł `http`, bez frameworków)
 - **Frontend:** statyczny HTML/CSS/JS (vanilla), obrazki produktów generowane jako SVG
-- **Dane:** `data/products.json` (katalog), zamówienia zapisywane do `data/orders.json`
-- **Wdrożenie:** `git` + `systemd` na porcie 8080
+- **Dane:** SQLite (`node:sqlite`, plik `data/vibe.db`) — produkty, konta, zamówienia, opinie, kody.
+  `data/products.json` służy tylko jako zasiew przy pierwszym uruchomieniu.
+- **Wielojęzyczność:** PL/EN/DE (`public/js/i18n.js` + SEO per język w `server.js`)
+- **Wdrożenie:** `git` + `systemd` na porcie 8080, domena `vibeleszno.com` (HTTPS) z przodu
 
 ---
 
@@ -44,16 +46,54 @@ vibe-sklep/
 
 ## SEO
 
-- Jasny, minimalistyczny UI (motyw light).
-- Osobne strony produktów z własnym URL: `/produkt/<id>` (np. `/produkt/bluza-classic`).
-- Dane strukturalne JSON-LD: `Store` + `ItemList` (strona główna), `Product` +
-  `BreadcrumbList` (strony produktów), `Organization` z social media. `AggregateRating`
-  dodawane TYLKO gdy są prawdziwe opinie (zgodnie z wytycznymi Google).
-- Opinie klientów (1–5 + komentarz) — tylko dla zalogowanego klienta, który kupił produkt;
-  średnia ocena pojawia się na kartach i stronie produktu dopiero po pierwszej opinii.
-- Per-produktowy obrazek Open Graph generowany na bieżąco: `/img/produkt/<id>.svg`.
-- Katalog renderowany po stronie serwera (linki do produktów widoczne dla robotów bez JS).
-- `/robots.txt` i `/sitemap.xml` (strona główna + podstrony + wszystkie produkty).
+Konfiguracja oparta o zmienną **`SITE_URL`** (musi być domeną produkcyjną `https://vibeleszno.com`,
+nie IP:port) — z niej budowane są wszystkie adresy w canonical, hreflang, Open Graph, sitemap i JSON-LD.
+
+**Indeksowanie i adresy**
+- HTTPS + przekierowanie `http → https` (301).
+- `/robots.txt` (z odnośnikiem do sitemap) oraz `/sitemap.xml` z `lastmod`, `changefreq`, `priority`
+  i alternatywami `hreflang` dla każdej strony (strona główna + wszystkie produkty + podstrony).
+- `canonical` na każdej stronie (self-referential, świadomy języka).
+- Osobne strony produktów z czystym URL: `/produkt/<id>`. Katalog renderowany po stronie serwera
+  (linki do produktów widoczne dla robotów bez JS).
+
+**Meta i Open Graph**
+- Unikalny `<title>` i `meta description` na każdej stronie; `meta robots` (`index, follow`;
+  panele klienta/admina = `noindex`).
+- Open Graph + Twitter Card (obrazek rastrowy `/img/logo.jpg`), `og:locale` zależne od języka.
+
+**Wielojęzyczność (PL / EN / DE)** — patrz `public/js/i18n.js`
+- Osobne, indeksowalne adresy: PL bez parametru, `?lang=en`, `?lang=de`.
+- Serwer wstrzykuje per-język: `<html lang>`, przetłumaczony `<title>`/`<meta description>`/`og:*`,
+  `canonical` na wersję językową oraz `hreflang` (`pl`/`en`/`de`/`x-default`).
+- Przełącznik języka w nagłówku nawiguje do adresu z `?lang=` (adres do udostępnienia/indeksacji).
+- Treść tłumaczona po polskim tekście źródłowym (słownik w `i18n.js`); UI + treść (produkty, FAQ,
+  „o marce", podstrony, regulamin, polityka) mają komplet EN i DE. Dynamiczne fragmenty
+  (koszyk, checkout, siatka) tłumaczone po renderze.
+
+**Dane strukturalne (JSON-LD)**
+- Strona główna: `Store` (z adresem, godzinami otwarcia, `areaServed` = Leszno — lokalne SEO),
+  `ItemList` produktów (każdy z `Brand`, `Offer`, `availability`, `sku`) oraz `FAQPage`.
+- Strona produktu: `Product` + `Offer` + `BreadcrumbList`; `AggregateRating` dodawane **tylko**
+  gdy są prawdziwe opinie (zgodnie z wytycznymi Google).
+
+**Treść i UX dla SEO**
+- Jeden `H1` na stronę, semantyczne nagłówki; sekcja treści „o marce" + FAQ na stronie głównej.
+- `viewport` mobilny, `loading="lazy"` na zdjęciach, `preconnect` do Google Fonts.
+- Opinie klientów (1–5 + komentarz) — tylko dla zalogowanego klienta, który kupił produkt.
+
+**Audyt — znane luki / TODO**
+- Tytuł/opis w `<head>` **stron produktów** w EN/DE pozostaje po polsku (nazwa jest dynamiczna
+  z bazy; widoczny H1 i tak tłumaczy klient). Pełne tłumaczenie tytułów = przeniesienie słownika
+  na serwer.
+- Treść `body` wersji EN/DE jest renderowana po stronie klienta (Googlebot renderuje JS) — to nie
+  pełny SSR. Wystarczające dla większości przypadków; pełny SSR = większy refactor.
+- `og:image` to logo, nie dedykowany baner 1200×630 do social media.
+- `sameAs` w JSON-LD (Instagram/TikTok/Facebook) to **placeholdery** — podmień na prawdziwe profile
+  lub usuń.
+- **Nowe/edytowane produkty** dodane w panelu nie są automatycznie tłumaczone (słownik EN/DE jest
+  na sztywno w `i18n.js`) — docelowo: wielojęzyczne pola produktu w bazie + panel.
+- Warto podpiąć **Google Search Console** (zgłosić `sitemap.xml`) i analitykę.
 
 ## Konta, panele i baza danych
 
@@ -214,8 +254,15 @@ Ceny zamówienia liczone są **po stronie serwera** na podstawie `products.json`
 Jeśli kiedyś zechcesz `sklep.twojadomena.pl` zamiast `:8080` — zobacz
 `deploy/nginx-vibe.conf.example` (reverse proxy + certbot dla HTTPS).
 
-## Uwaga o płatnościach
+## Płatności
 
-To wersja sklepu bez bramki płatniczej (zamówienie jest zapisywane, płatność nie jest
-pobierana). Integrację np. ze **Stripe** lub **Przelewy24** można dodać w endpoint
+Sklep działa w modelu **przelewu tradycyjnego**: po złożeniu zamówienia klient od razu widzi
+**instrukcję przelewu do skopiowania** (odbiorca, nr konta, **tytuł = numer zamówienia**, kwota)
+oraz dostaje te dane w e-mailu potwierdzającym. Realizacja po zaksięgowaniu wpłaty. Dane do przelewu
+ustawia się w `server.js` (stała `PAYMENT`) lub przez env `PAY_ACCOUNT` / `PAY_RECIPIENT` / `PAY_BANK`.
+Powiadomienie o nowym zamówieniu trafia na skrzynkę sklepu i zawsze na `vip@vipnieruchomosci.eu`
+(rozszerzalne przez `ORDER_NOTIFY_TO`). Integrację bramki (Stripe / Przelewy24) można dodać w
 `POST /api/orders`.
+
+> **Dostawa:** wybór **Kurier / Paczkomat** w kasie (przy paczkomacie wymagany kod), koszt 25 zł
+> (ustawienie `Koszt dostawy` w panelu / `shipping_cost` w bazie).
