@@ -340,6 +340,10 @@
     'Dodano do ulubionych': 'Added to favourites', 'Usunięto z ulubionych': 'Removed from favourites',
     'Nie udało się pobrać produktów. Odśwież stronę.': 'Failed to load products. Please refresh the page.',
     'Ładowanie…': 'Loading…', 'Koszyk': 'Cart', 'Do koszyka': 'Add to cart',
+    // Tabela rozmiarow — fragmenty po <strong> zaczynaja sie od "— "
+    '— zmierz obwód w najszerszym miejscu, pod pachami.': '— measure the circumference at the widest point, under the arms.',
+    '— od najwyższego punktu ramienia w dół do dołu produktu.': '— from the highest point of the shoulder down to the bottom of the garment.',
+    '— od szwu ramienia do końca mankietu.': '— from the shoulder seam to the end of the cuff.',
     // Kolory produktow (wybor na stronie produktu, koszyk)
     'Turkusowy': 'Turquoise', 'neonowy róż': 'Neon pink', 'jasny szary melanż': 'Light grey melange',
     'pastelowy': 'Pastel', 'miętowy': 'Mint', 'neonowa limonka': 'Neon lime',
