@@ -156,7 +156,7 @@ function initCartPage() {
     const media = p.image ? `<img class="card-photo" src="${p.image}" alt="">` : productSvg(p);
     return `<div class="cart-item">
       <div class="cart-item-img">${media}</div>
-      <div class="cart-item-info"><div class="ci-name">${p.name}</div><div class="ci-meta">${i.size} · ${i.color}</div>
+      <div class="cart-item-info"><div class="ci-name">${p.name}</div><div class="ci-meta">${i.size} · <span>${i.color}</span></div>
         <div class="qty"><button data-dec="${i.key}">−</button><span>${i.qty}</span><button data-inc="${i.key}">+</button></div></div>
       <div class="ci-right"><strong>${money(p.price * i.qty)}</strong><button class="ci-remove" data-rm="${i.key}">Usuń</button></div>
     </div>`;
@@ -322,7 +322,7 @@ function renderCart() {
         <div class="cart-item-img">${productSvg(p)}</div>
         <div class="cart-item-info">
           <div class="ci-name">${p.name}</div>
-          <div class="ci-meta">${i.size} · ${i.color}</div>
+          <div class="ci-meta">${i.size} · <span>${i.color}</span></div>
           <div class="qty">
             <button data-dec="${i.key}">−</button><span>${i.qty}</span><button data-inc="${i.key}">+</button>
           </div>
