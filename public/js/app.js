@@ -130,7 +130,7 @@ function updatePpAvailability() {
   const note = $('#ppStock');
   if (note) {
     note.className = 'pp-stock' + (av <= 0 ? ' soldout' : (av <= 5 ? ' low' : ''));
-    note.textContent = av <= 0 ? 'Wybrany wariant niedostępny' : (av <= 5 ? `Zostały ostatnie sztuki: ${av}` : '✔ Dostępny, wysyłka 48h');
+    note.textContent = av <= 0 ? 'Wybrany wariant niedostępny' : (av <= 5 ? `Zostały ostatnie sztuki: ${av}` : '✔ Dostępny, wysyłka 24h');
   }
 }
 

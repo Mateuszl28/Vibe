@@ -53,7 +53,7 @@ let PRODUCTS = db.getAllProducts();
 db.seedSettings({
   free_shipping_threshold: '0',
   shipping_cost: '25.00',
-  announce_text: 'Wysyłka 48h  ·  30 dni na zwrot  ·  Bezpieczne płatności',
+  announce_text: 'Wysyłka 24h  ·  14 dni na zwrot  ·  Bezpieczne płatności',
   contact_email: 'kontakt@vibeleszno.com',
   contact_phone: '+48 665 799 919'
 });
@@ -273,7 +273,7 @@ const FAQ = [
   },
   {
     q: 'Czy mogę zwrócić lub wymienić zamówiony produkt?',
-    a: 'Tak. Masz 30 dni na zwrot bez podawania przyczyny. Wystarczy, że produkt jest nieużywany i z metką. Zasady zwrotów i wymiany opisaliśmy w sekcji <a href="/dostawa-zwroty">Dostawa i zwroty</a>.'
+    a: 'Tak. Masz 14 dni na zwrot bez podawania przyczyny. Wystarczy, że produkt jest nieużywany i z metką. Zasady zwrotów i wymiany opisaliśmy w sekcji <a href="/dostawa-zwroty">Dostawa i zwroty</a>.'
   },
   {
     q: 'Z jakiego materiału uszyte są ubrania Vibe?',
@@ -496,7 +496,7 @@ function getProductHtml(p) {
       ? `<button class="btn btn-primary btn-block" id="ppAdd" data-id="${esc(p.id)}">Dodaj do koszyka</button>`
       : '<button class="btn btn-primary btn-block" id="ppAdd" data-id="' + esc(p.id) + '" disabled>Wyprzedane</button>',
     P_STOCK_NOTE: availableStock(p) > 0
-      ? (availableStock(p) <= 5 ? `<p class="pp-stock low" id="ppStock">Zostały ostatnie sztuki: ${availableStock(p)}</p>` : '<p class="pp-stock" id="ppStock">✔ Dostępny, wysyłka 48h</p>')
+      ? (availableStock(p) <= 5 ? `<p class="pp-stock low" id="ppStock">Zostały ostatnie sztuki: ${availableStock(p)}</p>` : '<p class="pp-stock" id="ppStock">✔ Dostępny, wysyłka 24h</p>')
       : '<p class="pp-stock soldout" id="ppStock">Produkt chwilowo niedostępny</p>'
   };
   let html = tpl.replace(/__([A-Z_]+)__/g, (m, key) => (key in repl ? repl[key] : m));
