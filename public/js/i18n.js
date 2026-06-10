@@ -339,7 +339,7 @@
     'Dziękujemy za zamówienie': 'Thank you for your order', 'Wybierz rozmiar': 'Choose a size', 'Wybierz kolor': 'Choose a colour',
     'Dodano do ulubionych': 'Added to favourites', 'Usunięto z ulubionych': 'Removed from favourites',
     'Nie udało się pobrać produktów. Odśwież stronę.': 'Failed to load products. Please refresh the page.',
-    'Ładowanie…': 'Loading…', 'Koszyk': 'Cart',
+    'Ładowanie…': 'Loading…', 'Koszyk': 'Cart', 'Do koszyka': 'Add to cart',
     // Kolory produktow (wybor na stronie produktu, koszyk)
     'Turkusowy': 'Turquoise', 'neonowy róż': 'Neon pink', 'jasny szary melanż': 'Light grey melange',
     'pastelowy': 'Pastel', 'miętowy': 'Mint', 'neonowa limonka': 'Neon lime',
