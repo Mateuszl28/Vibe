@@ -677,7 +677,7 @@ function handleCreateOrder(req, res, raw, user) {
   const parcelLocker = deliveryMethod === 'paczkomat' ? String(payload.parcelLocker || '').trim().toUpperCase() : '';
 
   const order = {
-    id: 'VIBE-' + String(1001 + db.countOrders()),
+    id: db.nextOrderId(),
     user_id: user ? user.id : null,
     createdAt: new Date().toISOString(),
     deliveryMethod,
