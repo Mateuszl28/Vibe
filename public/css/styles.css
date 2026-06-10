@@ -261,6 +261,14 @@ a { color: inherit; text-decoration: none; }
 .dm-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .dm-opt input { width: auto !important; margin: 0; accent-color: var(--accent); }
 #kurierFields, #paczkomatFields { display: flex; flex-direction: column; gap: 14px; }
+.locker-row { display: flex; gap: 8px; align-items: stretch; }
+.locker-row input { flex: 1; }
+.locker-row .btn { white-space: nowrap; padding: 0 14px; }
+.geo-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.geo-modal { background: #fff; border-radius: 14px; width: min(900px, 100%); height: min(80vh, 700px); display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-lg, 0 20px 60px rgba(0,0,0,.3)); }
+.geo-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.geo-box { flex: 1; min-height: 0; }
+.geo-box inpost-geowidget { display: block; width: 100%; height: 100%; }
 .checkout-form label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--muted); font-weight: 500; }
 .checkout-form input, .checkout-form textarea {
   background: #fff; border: 1px solid var(--line-strong); color: var(--text);

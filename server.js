@@ -746,6 +746,7 @@ function handleCreateOrder(req, res, raw, user) {
 
   const deliveryMethod = payload.deliveryMethod === 'paczkomat' ? 'paczkomat' : 'kurier';
   const parcelLocker = deliveryMethod === 'paczkomat' ? String(payload.parcelLocker || '').trim().toUpperCase() : '';
+  const parcelLockerAddr = deliveryMethod === 'paczkomat' ? String(payload.parcelLockerAddress || '').trim().slice(0, 200) : '';
 
   const order = {
     id: db.nextOrderId(),
@@ -753,13 +754,14 @@ function handleCreateOrder(req, res, raw, user) {
     createdAt: new Date().toISOString(),
     deliveryMethod,
     parcelLocker,
+    parcelLockerAddr,
     customer: (() => {
       const c = payload.customer;
       const street = String(c.street || '').trim();
       const postalCode = String(c.postalCode || '').trim();
       const city = String(c.city || '').trim();
       const address = deliveryMethod === 'paczkomat'
-        ? `Paczkomat ${parcelLocker}`
+        ? ('Paczkomat ' + parcelLocker + (parcelLockerAddr ? ' (' + parcelLockerAddr + ')' : ''))
         : `${street}, ${postalCode} ${city}`;
       return {
         name: String(c.name).trim(),
@@ -860,7 +862,7 @@ const SMTP = {
 // Adresy powiadamiane o NOWYCH ZAMOWIENIACH (skrzynka sklepu).
 // Zawsze dolaczamy vip@vipnieruchomosci.eu (mozna dopisac wiecej przez ORDER_NOTIFY_TO, po przecinku).
 const ORDER_NOTIFY = [...new Set(
-  [SMTP.to, process.env.ORDER_NOTIFY_TO || '', 'vip@vipnieruchomosci.eu']
+  [SMTP.to, process.env.ORDER_NOTIFY_TO || '', 'kontakt@vibeleszno.com', 'vip@vipnieruchomosci.eu']
     .join(',').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
 )].join(', ');
 
@@ -980,8 +982,10 @@ function buildOrderEmailText(order) {
   lines.push('Dane do wysyłki:');
   lines.push(`  ${order.customer.name}`);
   lines.push(`  Sposób dostawy: ${methodLabel}`);
-  if (order.deliveryMethod === 'paczkomat') lines.push(`  Kod paczkomatu: ${order.parcelLocker}`);
-  else lines.push(`  ${order.customer.address}`);
+  if (order.deliveryMethod === 'paczkomat') {
+    lines.push(`  Kod paczkomatu: ${order.parcelLocker}`);
+    if (order.parcelLockerAddr) lines.push(`  Adres paczkomatu: ${order.parcelLockerAddr}`);
+  } else lines.push(`  ${order.customer.address}`);
   if (order.customer.phone) lines.push(`  tel. ${order.customer.phone}`);
   lines.push(`  ${order.customer.email}`);
   lines.push('');
@@ -1218,7 +1222,8 @@ const server = http.createServer(async (req, res) => {
       const s = db.getSettings();
       return sendJson(res, 200, {
         freeShippingThreshold: parseFloat(s.free_shipping_threshold) || 0,
-        shippingCost: parseFloat(s.shipping_cost) || 0
+        shippingCost: parseFloat(s.shipping_cost) || 0,
+        geowidgetToken: process.env.GEOWIDGET_TOKEN || ''
       });
     }
     if (method === 'POST' && url === '/api/discount/validate') {

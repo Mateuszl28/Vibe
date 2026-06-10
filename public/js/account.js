@@ -93,7 +93,7 @@ function orderCard(o, admin) {
       <span class="muted">${esc(date)}</span>
     </div>
     ${admin ? `<div class="muted" style="font-size:.85rem;margin-bottom:8px">${esc(o.customer.name)} · ${esc(o.customer.email)} · ${esc(o.customer.phone || '—')} · ${esc(o.customer.address)}</div>` : ''}
-    <div class="muted" style="font-size:.85rem;margin-bottom:8px">${o.deliveryMethod === 'paczkomat' ? '📦 Paczkomat — kod: <strong>' + esc(o.parcelLocker || '—') + '</strong>' : '🚚 Kurier'}</div>
+    <div class="muted" style="font-size:.85rem;margin-bottom:8px">${o.deliveryMethod === 'paczkomat' ? '📦 Paczkomat — kod: <strong>' + esc(o.parcelLocker || '—') + '</strong>' + (o.parcelLockerAddr ? ' · ' + esc(o.parcelLockerAddr) : '') : '🚚 Kurier'}</div>
     <div class="order-items">${items}</div>
     ${(o.shipping || o.discount) ? `<div class="muted" style="font-size:.83rem;margin-top:6px">Dostawa: ${o.shipping ? money(o.shipping) : 'gratis'}${o.discount ? ` · Rabat ${esc(o.discountCode || '')}: -${money(o.discount)}` : ''}</div>` : ''}
     <div class="order-foot">
@@ -264,12 +264,12 @@ async function initAdmin() {
   $('#exportOrders').addEventListener('click', () => {
     const list = getFilteredOrders();
     if (!list.length) { toast('Brak zamówień do eksportu'); return; }
-    const rows = [['Nr', 'Data', 'Status', 'Klient', 'E-mail', 'Telefon', 'Dostawa', 'Kod paczkomatu', 'Adres', 'Produkty', 'Suma (zł)']];
+    const rows = [['Nr', 'Data', 'Status', 'Klient', 'E-mail', 'Telefon', 'Dostawa', 'Kod paczkomatu', 'Adres paczkomatu', 'Adres', 'Produkty', 'Suma (zł)']];
     list.forEach((o) => {
       const items = o.items.map((i) => `${i.name} ${i.size}/${i.color} x${i.qty}`).join('; ');
       const method = o.deliveryMethod === 'paczkomat' ? 'Paczkomat' : 'Kurier';
       rows.push([o.id, new Date(o.createdAt).toLocaleString('pl-PL'), o.status, o.customer.name,
-        o.customer.email, o.customer.phone || '', method, o.parcelLocker || '', o.customer.address, items, o.total.toFixed(2)]);
+        o.customer.email, o.customer.phone || '', method, o.parcelLocker || '', o.parcelLockerAddr || '', o.customer.address, items, o.total.toFixed(2)]);
     });
     downloadCsv(rows, 'zamowienia-vibe.csv');
     toast('Wyeksportowano CSV');
@@ -278,11 +278,11 @@ async function initAdmin() {
   $('#exportCourier').addEventListener('click', () => {
     const list = getFilteredOrders();
     if (!list.length) { toast('Brak zamówień do eksportu'); return; }
-    const rows = [['Imię i nazwisko', 'Telefon', 'E-mail', 'Sposób dostawy', 'Kod paczkomatu', 'Ulica i nr', 'Kod pocztowy', 'Miasto', 'Kraj', 'Adres (pełny)', 'Nr zamówienia', 'Kwota pobrania (zł)', 'Waga (kg)', 'Uwagi']];
+    const rows = [['Imię i nazwisko', 'Telefon', 'E-mail', 'Sposób dostawy', 'Kod paczkomatu', 'Adres paczkomatu', 'Ulica i nr', 'Kod pocztowy', 'Miasto', 'Kraj', 'Adres (pełny)', 'Nr zamówienia', 'Kwota pobrania (zł)', 'Waga (kg)', 'Uwagi']];
     list.forEach((o) => {
       const c = o.customer;
       const method = o.deliveryMethod === 'paczkomat' ? 'Paczkomat' : 'Kurier';
-      rows.push([c.name, c.phone || '', c.email, method, o.parcelLocker || '', c.street || '', c.postalCode || '', c.city || '', 'PL',
+      rows.push([c.name, c.phone || '', c.email, method, o.parcelLocker || '', o.parcelLockerAddr || '', c.street || '', c.postalCode || '', c.city || '', 'PL',
         c.address, o.id, o.total.toFixed(2), '', o.note || '']);
     });
     downloadCsv(rows, 'kurier-vibe.csv');
@@ -331,7 +331,7 @@ async function initAdmin() {
     if (!w) { toast('Pozwól na wyskakujące okna, by zapisać PDF'); return; }
     const body = list.map((o, idx) => {
       const items = o.items.map((i) => `${esc(i.name)} ${esc(i.size)}/${esc(i.color)} ×${i.qty}`).join('<br>');
-      const delivery = o.deliveryMethod === 'paczkomat' ? 'Paczkomat<br><span class="sub">' + esc(o.parcelLocker || '—') + '</span>' : 'Kurier';
+      const delivery = o.deliveryMethod === 'paczkomat' ? 'Paczkomat<br><span class="sub">' + esc(o.parcelLocker || '—') + (o.parcelLockerAddr ? '<br>' + esc(o.parcelLockerAddr) : '') + '</span>' : 'Kurier';
       return `<tr class="${idx % 2 ? 'alt' : ''}">
         <td class="nr">${esc(o.id)}</td>
         <td>${esc(new Date(o.createdAt).toLocaleString('pl-PL'))}</td>
@@ -388,7 +388,7 @@ async function initAdmin() {
       <h1>VIBE — zamówienie ${esc(o.id)}</h1>
       <p>${esc(new Date(o.createdAt).toLocaleString('pl-PL'))} · status: ${esc(o.status)}</p>
       <p><strong>${esc(o.customer.name)}</strong><br>${esc(o.customer.email)} · ${esc(o.customer.phone || '')}<br>${esc(o.customer.address)}</p>
-      <p><strong>Dostawa:</strong> ${o.deliveryMethod === 'paczkomat' ? 'Paczkomat — kod ' + esc(o.parcelLocker || '—') : 'Kurier'}</p>
+      <p><strong>Dostawa:</strong> ${o.deliveryMethod === 'paczkomat' ? 'Paczkomat — kod ' + esc(o.parcelLocker || '—') + (o.parcelLockerAddr ? ' (' + esc(o.parcelLockerAddr) + ')' : '') : 'Kurier'}</p>
       <table><thead><tr><th>Produkt</th><th>Ilość</th><th>Kwota</th></tr></thead><tbody>${items}</tbody></table>
       <p>Dostawa: ${o.shipping ? money(o.shipping) : 'gratis'}${o.discount ? ` · Rabat ${esc(o.discountCode || '')}: -${money(o.discount)}` : ''}</p>
       <p class="tot">Razem: ${money(o.total)}</p>

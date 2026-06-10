@@ -5,7 +5,7 @@ let PRODUCTS = [];
 let currentFilter = 'all';
 let searchQuery = '';
 let sortBy = 'featured';
-let shopSettings = { freeShippingThreshold: 0, shippingCost: 25 };
+let shopSettings = { freeShippingThreshold: 0, shippingCost: 25, geowidgetToken: '' };
 let appliedDiscount = null;
 let cart = loadCart();
 
@@ -357,8 +357,14 @@ function checkoutFormHtml() {
         </div>
       </div>
       <div id="paczkomatFields" hidden>
-        <label>Kod paczkomatu<input name="parcelLocker" placeholder="np. LES01A" /></label>
-        <p class="muted small">Podaj kod paczkomatu InPost, do którego mamy wysłać przesyłkę.</p>
+        <label>Kod paczkomatu
+          <div class="locker-row">
+            <input name="parcelLocker" placeholder="np. LES01A" autocomplete="off" />
+            <button type="button" class="btn btn-ghost" id="pickLocker" hidden>📍 Wybierz na mapie</button>
+          </div>
+        </label>
+        <input type="hidden" name="parcelLockerAddress" />
+        <p class="muted small" id="lockerInfo">Wpisz kod paczkomatu InPost lub wskaż go na mapie.</p>
       </div>
       <div class="discount-row">
         <input type="text" id="discountInput" placeholder="Kod rabatowy" autocomplete="off" />
@@ -427,10 +433,67 @@ function openCheckout() {
   $('#checkoutForm').addEventListener('submit', submitOrder);
   $('#applyDiscount').addEventListener('click', applyDiscount);
   $$('#checkoutForm input[name="deliveryMethod"]').forEach((r) => r.addEventListener('change', () => { updateDeliveryFields(); renderCheckoutSummary(); }));
+  const pick = $('#pickLocker');
+  if (pick && shopSettings.geowidgetToken) { pick.hidden = false; pick.addEventListener('click', openGeowidget); }
   updateDeliveryFields();
   renderCheckoutSummary();
   if ($('#cartDrawer')) $('#cartDrawer').hidden = true;
   $('#checkoutModal').hidden = false;
+}
+
+/* ====== InPost Geowidget — wybor paczkomatu na mapie ====== */
+let geoLoaded = false;
+function ensureGeowidgetAssets(cb) {
+  if (geoLoaded) return cb();
+  if (!document.getElementById('geo-css')) {
+    const css = document.createElement('link');
+    css.id = 'geo-css'; css.rel = 'stylesheet'; css.href = 'https://geowidget.inpost.pl/inpost-geowidget.css';
+    document.head.appendChild(css);
+  }
+  const js = document.createElement('script');
+  js.defer = true; js.src = 'https://geowidget.inpost.pl/inpost-geowidget.js';
+  js.onload = () => { geoLoaded = true; cb(); };
+  js.onerror = () => toast('Nie udało się wczytać mapy paczkomatów');
+  document.head.appendChild(js);
+}
+function ensureGeoModal() {
+  let modal = $('#geoModal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'geoModal'; modal.className = 'geo-overlay'; modal.hidden = true;
+  modal.innerHTML = '<div class="geo-modal"><div class="geo-head"><strong>Wybierz paczkomat</strong>'
+    + '<button type="button" class="modal-close" id="geoClose" aria-label="Zamknij">&times;</button></div>'
+    + '<div id="geoBox" class="geo-box"></div></div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click', (e) => { if (e.target === modal || e.target.id === 'geoClose') modal.hidden = true; });
+  if (window.VibeI18n) window.VibeI18n.apply();
+  return modal;
+}
+function openGeowidget() {
+  const token = shopSettings.geowidgetToken;
+  if (!token) { toast('Mapa paczkomatów chwilowo niedostępna'); return; }
+  const modal = ensureGeoModal();
+  const box = $('#geoBox');
+  box.innerHTML = '<p class="muted" style="padding:20px">Ładowanie mapy…</p>';
+  modal.hidden = false;
+  ensureGeowidgetAssets(() => {
+    const lang = (window.VibeI18n && window.VibeI18n.getLang() === 'en') ? 'en' : 'pl';
+    box.innerHTML = `<inpost-geowidget token="${token}" language="${lang}" config="parcelcollect"></inpost-geowidget>`;
+    const gw = box.querySelector('inpost-geowidget');
+    gw.addEventListener('onpoint', (e) => {
+      const p = e.detail || {};
+      const code = p.name || (p.point && p.point.name) || '';
+      if (!code) return;
+      const form = $('#checkoutForm');
+      if (form && form.parcelLocker) form.parcelLocker.value = code;
+      const addr = p.address && (p.address.line1 || p.address.line2)
+        ? [p.address.line1, p.address.line2].filter(Boolean).join(', ') : '';
+      if (form && form.parcelLockerAddress) form.parcelLockerAddress.value = addr;
+      const info = $('#lockerInfo');
+      if (info) info.textContent = 'Wybrano: ' + code + (addr ? ' — ' + addr : '');
+      modal.hidden = true;
+    });
+  });
 }
 function copyToClipboard(text, btn) {
   const done = () => { if (btn) { const o = btn.textContent; btn.textContent = 'Skopiowano ✓'; btn.classList.add('copied'); setTimeout(() => { btn.textContent = o; btn.classList.remove('copied'); }, 1600); } };
@@ -475,6 +538,7 @@ async function submitOrder(e) {
     },
     deliveryMethod,
     parcelLocker: form.parcelLocker ? form.parcelLocker.value : '',
+    parcelLockerAddress: form.parcelLockerAddress ? form.parcelLockerAddress.value : '',
     items: cart.map(i => ({ id: i.id, size: i.size, color: i.color, qty: i.qty })),
     discountCode: appliedDiscount ? appliedDiscount.code : ''
   };
@@ -688,6 +752,7 @@ async function initSettings() {
     const s = await r.json();
     if (typeof s.freeShippingThreshold === 'number') shopSettings.freeShippingThreshold = s.freeShippingThreshold;
     if (typeof s.shippingCost === 'number') shopSettings.shippingCost = s.shippingCost;
+    if (typeof s.geowidgetToken === 'string') shopSettings.geowidgetToken = s.geowidgetToken;
   } catch {}
 }
 
