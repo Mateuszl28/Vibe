@@ -12,6 +12,7 @@ const path = require('path');
 const tls = require('tls');
 const db = require('./lib/db');
 const auth = require('./lib/auth');
+const PRODUCT_I18N = require('./lib/product-i18n'); // tlumaczenia nazw/opisow produktow (SEO EN/DE)
 
 const PORT = parseInt(process.env.PORT, 10) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -339,13 +340,12 @@ function buildJsonLd() {
       dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
       opens: '09:00',
       closes: '17:00'
-    }],
-    sameAs: [
-      'https://instagram.com/vibe',
-      'https://tiktok.com/@vibe',
-      'https://facebook.com/vibe'
-    ]
+    }]
   };
+  // Prawdziwe profile social (env SOCIAL_LINKS, po przecinku) -> sameAs. Brak = nie dodajemy
+  // (Google nie lubi martwych/placeholderowych linkow).
+  const social = (process.env.SOCIAL_LINKS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (social.length) store.sameAs = social;
   const itemList = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
@@ -551,12 +551,24 @@ function localizePage(html, lang, seoPath) {
     // og:locale
     html = html.replace('content="pl_PL"', `content="${OG_LOCALE[lang]}"`);
     // tytul + opis (jesli mamy tlumaczenie dla tej sciezki)
-    const h = I18N_HEAD[lang] && I18N_HEAD[lang][seoPath];
+    let h = I18N_HEAD[lang] && I18N_HEAD[lang][seoPath];
+    // strony produktow: tlumaczymy nazwe + opis ze slownika produktow
+    if (!h && seoPath.indexOf('/produkt/') === 0) {
+      const pid = seoPath.slice('/produkt/'.length);
+      const p = db.getProductById(pid);
+      const map = PRODUCT_I18N[lang] || {};
+      if (p) {
+        const name = map[p.name] || p.name;
+        const desc = map[p.description] || p.description;
+        h = { t: name + ' — Vibe', d: desc };
+      }
+    }
     if (h) {
       html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(h.t)}</title>`);
       html = html.replace(/(<meta name="description" content=")[\s\S]*?(")/, `$1${esc(h.d)}$2`);
       html = html.replace(/(<meta property="og:title" content=")[\s\S]*?(")/, `$1${esc(h.t)}$2`);
       html = html.replace(/(<meta property="og:description" content=")[\s\S]*?(")/, `$1${esc(h.d)}$2`);
+      html = html.replace(/(<meta name="twitter:title" content=")[\s\S]*?(")/, `$1${esc(h.t)}$2`);
     }
   }
   return html;
