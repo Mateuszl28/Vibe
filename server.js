@@ -595,11 +595,16 @@ function serveStatic(req, res, urlPath) {
 function validateOrder(payload) {
   const errors = [];
   const c = payload && payload.customer ? payload.customer : {};
+  const method = payload && payload.deliveryMethod === 'paczkomat' ? 'paczkomat' : 'kurier';
   if (!c.name || String(c.name).trim().length < 2) errors.push('Podaj imie i nazwisko.');
   if (!c.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(c.email))) errors.push('Podaj poprawny e-mail.');
-  if (!c.street || String(c.street).trim().length < 3) errors.push('Podaj ulice i numer.');
-  if (!c.postalCode || !/^\d{2}-\d{3}$/.test(String(c.postalCode).trim())) errors.push('Podaj kod pocztowy (format 00-000).');
-  if (!c.city || String(c.city).trim().length < 2) errors.push('Podaj miasto.');
+  if (method === 'paczkomat') {
+    if (!payload.parcelLocker || String(payload.parcelLocker).trim().length < 3) errors.push('Podaj kod paczkomatu.');
+  } else {
+    if (!c.street || String(c.street).trim().length < 3) errors.push('Podaj ulice i numer.');
+    if (!c.postalCode || !/^\d{2}-\d{3}$/.test(String(c.postalCode).trim())) errors.push('Podaj kod pocztowy (format 00-000).');
+    if (!c.city || String(c.city).trim().length < 2) errors.push('Podaj miasto.');
+  }
   if (!Array.isArray(payload.items) || payload.items.length === 0) errors.push('Koszyk jest pusty.');
   return errors;
 }
@@ -668,21 +673,29 @@ function handleCreateOrder(req, res, raw, user) {
   }
   const grandTotal = Math.max(0, total + shipping - discount);
 
+  const deliveryMethod = payload.deliveryMethod === 'paczkomat' ? 'paczkomat' : 'kurier';
+  const parcelLocker = deliveryMethod === 'paczkomat' ? String(payload.parcelLocker || '').trim().toUpperCase() : '';
+
   const order = {
     id: 'VIBE-' + String(1001 + db.countOrders()),
     user_id: user ? user.id : null,
     createdAt: new Date().toISOString(),
+    deliveryMethod,
+    parcelLocker,
     customer: (() => {
       const c = payload.customer;
-      const street = String(c.street).trim();
-      const postalCode = String(c.postalCode).trim();
-      const city = String(c.city).trim();
+      const street = String(c.street || '').trim();
+      const postalCode = String(c.postalCode || '').trim();
+      const city = String(c.city || '').trim();
+      const address = deliveryMethod === 'paczkomat'
+        ? `Paczkomat ${parcelLocker}`
+        : `${street}, ${postalCode} ${city}`;
       return {
         name: String(c.name).trim(),
         email: String(c.email).trim(),
         phone: c.phone ? String(c.phone).trim() : '',
         street, postalCode, city,
-        address: `${street}, ${postalCode} ${city}`
+        address
       };
     })(),
     items: lineItems,
@@ -882,12 +895,15 @@ function buildOrderEmailText(order) {
   lines.push('');
   lines.push(`Wartość produktów: ${money(sub)}`);
   if (order.discount > 0) lines.push(`Rabat${order.discountCode ? ' (' + order.discountCode + ')' : ''}: -${money(order.discount)}`);
-  lines.push(`Dostawa: ${order.shipping === 0 ? 'gratis' : money(order.shipping)}`);
+  const methodLabel = order.deliveryMethod === 'paczkomat' ? 'Paczkomat' : 'Kurier';
+  lines.push(`Dostawa (${methodLabel}): ${order.shipping === 0 ? 'gratis' : money(order.shipping)}`);
   lines.push(`RAZEM DO ZAPŁATY: ${money(order.total)}`);
   lines.push('');
   lines.push('Dane do wysyłki:');
   lines.push(`  ${order.customer.name}`);
-  lines.push(`  ${order.customer.address}`);
+  lines.push(`  Sposób dostawy: ${methodLabel}`);
+  if (order.deliveryMethod === 'paczkomat') lines.push(`  Kod paczkomatu: ${order.parcelLocker}`);
+  else lines.push(`  ${order.customer.address}`);
   if (order.customer.phone) lines.push(`  tel. ${order.customer.phone}`);
   lines.push(`  ${order.customer.email}`);
   lines.push('');

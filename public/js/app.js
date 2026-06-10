@@ -338,10 +338,20 @@ function checkoutFormHtml() {
       <label>Imię i nazwisko<input name="name" required minlength="2" /></label>
       <label>E-mail<input name="email" type="email" required /></label>
       <label>Telefon<input name="phone" type="tel" required /></label>
-      <label>Ulica i numer<input name="street" required /></label>
-      <div class="addr-row">
-        <label>Kod pocztowy<input name="postalCode" required placeholder="00-000" /></label>
-        <label>Miasto<input name="city" required /></label>
+      <div class="delivery-choice">
+        <label class="dm-opt"><input type="radio" name="deliveryMethod" value="kurier" checked /> <span>🚚 Kurier</span></label>
+        <label class="dm-opt"><input type="radio" name="deliveryMethod" value="paczkomat" /> <span>📦 Paczkomat</span></label>
+      </div>
+      <div id="kurierFields">
+        <label>Ulica i numer<input name="street" /></label>
+        <div class="addr-row">
+          <label>Kod pocztowy<input name="postalCode" placeholder="00-000" /></label>
+          <label>Miasto<input name="city" /></label>
+        </div>
+      </div>
+      <div id="paczkomatFields" hidden>
+        <label>Kod paczkomatu<input name="parcelLocker" placeholder="np. LES01A" /></label>
+        <p class="muted small">Podaj kod paczkomatu InPost, do którego mamy wysłać przesyłkę.</p>
       </div>
       <div class="discount-row">
         <input type="text" id="discountInput" placeholder="Kod rabatowy" autocomplete="off" />
@@ -370,8 +380,10 @@ function renderCheckoutSummary() {
     const p = PRODUCTS.find(x => x.id === i.id);
     return `<div class="fs-row"><span>${p.name} (${i.size}/${i.color}) ×${i.qty}</span><span>${money(p.price * i.qty)}</span></div>`;
   }).join('');
+  const dm = (document.querySelector('input[name="deliveryMethod"]:checked') || {}).value;
+  const dmLabel = dm === 'paczkomat' ? 'Dostawa (Paczkomat)' : 'Dostawa (Kurier)';
   $('#formSummary').innerHTML = rows
-    + `<div class="fs-row"><span>Dostawa</span><span>${t.shipping === 0 ? 'gratis 🎉' : money(t.shipping)}</span></div>`
+    + `<div class="fs-row"><span>${dmLabel}</span><span>${t.shipping === 0 ? 'gratis 🎉' : money(t.shipping)}</span></div>`
     + (t.discount > 0 ? `<div class="fs-row"><span>Rabat ${appliedDiscount.code}</span><span>-${money(t.discount)}</span></div>` : '')
     + `<div class="fs-row fs-total"><span>Razem</span><span>${money(t.total)}</span></div>`;
 }
@@ -390,12 +402,24 @@ async function applyDiscount() {
   } catch { appliedDiscount = null; }
   renderCheckoutSummary();
 }
+function updateDeliveryFields() {
+  const form = $('#checkoutForm'); if (!form) return;
+  const method = (form.querySelector('input[name="deliveryMethod"]:checked') || {}).value || 'kurier';
+  const isLocker = method === 'paczkomat';
+  $('#kurierFields').hidden = isLocker;
+  $('#paczkomatFields').hidden = !isLocker;
+  // required tylko na widocznych polach (ukryte required blokuje wysylke formularza)
+  ['street', 'postalCode', 'city'].forEach((n) => { const el = form.elements[n]; if (el) el.required = !isLocker; });
+  const locker = form.elements['parcelLocker']; if (locker) locker.required = isLocker;
+}
 function openCheckout() {
   if (!cart.length) { toast('Koszyk jest pusty'); return; }
   appliedDiscount = null;
   $('#checkoutContent').innerHTML = checkoutFormHtml();
   $('#checkoutForm').addEventListener('submit', submitOrder);
   $('#applyDiscount').addEventListener('click', applyDiscount);
+  $$('#checkoutForm input[name="deliveryMethod"]').forEach((r) => r.addEventListener('change', () => { updateDeliveryFields(); renderCheckoutSummary(); }));
+  updateDeliveryFields();
   renderCheckoutSummary();
   if ($('#cartDrawer')) $('#cartDrawer').hidden = true;
   $('#checkoutModal').hidden = false;
@@ -435,11 +459,14 @@ async function submitOrder(e) {
   const form = e.target;
   const err = $('#formError');
   err.hidden = true;
+  const deliveryMethod = (form.querySelector('input[name="deliveryMethod"]:checked') || {}).value || 'kurier';
   const payload = {
     customer: {
       name: form.name.value, email: form.email.value, phone: form.phone.value,
       street: form.street.value, postalCode: form.postalCode.value, city: form.city.value
     },
+    deliveryMethod,
+    parcelLocker: form.parcelLocker ? form.parcelLocker.value : '',
     items: cart.map(i => ({ id: i.id, size: i.size, color: i.color, qty: i.qty })),
     discountCode: appliedDiscount ? appliedDiscount.code : ''
   };
