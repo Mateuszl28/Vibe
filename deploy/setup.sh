@@ -49,8 +49,8 @@ Type=simple
 WorkingDirectory=${REPO_DIR}
 Environment=PORT=${PORT}
 Environment=HOST=0.0.0.0
-# Adres bazowy do SEO (canonical, Open Graph, sitemap). Zmien na domene gdy bedzie.
-Environment=SITE_URL=http://85.215.197.199:${PORT}
+# Adres bazowy do SEO (canonical, Open Graph, sitemap). MUSI byc domena produkcyjna (https), nie IP:port.
+Environment=SITE_URL=${SITE_URL:-https://vibeleszno.com}
 # Konto administratora (login: admin). ZMIEN HASLO ponizej na wlasne!
 Environment=ADMIN_USER=admin
 Environment=ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
