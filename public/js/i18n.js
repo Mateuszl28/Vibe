@@ -389,6 +389,8 @@
     'Dodano do ulubionych': 'Added to favourites', 'Usunięto z ulubionych': 'Removed from favourites',
     'Nie udało się pobrać produktów. Odśwież stronę.': 'Failed to load products. Please refresh the page.',
     'Ładowanie…': 'Loading…', 'Koszyk': 'Cart', 'Do koszyka': 'Add to cart',
+    // Nakladki (badge) na zdjeciu produktu
+    'Bluza': 'Hoodie', 'Koszulka': 'T-shirt', 'Ostatnie sztuki': 'Last items',
     // Tabela rozmiarow — fragmenty po <strong> zaczynaja sie od "— "
     '— zmierz obwód w najszerszym miejscu, pod pachami.': '— measure the circumference at the widest point, under the arms.',
     '— od najwyższego punktu ramienia w dół do dołu produktu.': '— from the highest point of the shoulder down to the bottom of the garment.',
