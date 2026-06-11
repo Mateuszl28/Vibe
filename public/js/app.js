@@ -373,6 +373,10 @@ function checkoutFormHtml() {
       <p class="discount-msg" id="discountMsg" hidden></p>
       <div class="form-summary" id="formSummary"></div>
       <p class="form-error" id="formError" hidden></p>
+      <label class="terms-check" style="display:flex;align-items:flex-start;gap:8px;margin:6px 0 2px;font-size:.9rem;line-height:1.4;font-weight:400">
+        <input type="checkbox" name="acceptTerms" required style="margin-top:3px;flex:0 0 auto" />
+        <span>Akceptuję <a href="/regulamin" target="_blank" rel="noopener">regulamin sklepu</a></span>
+      </label>
       <button type="submit" class="btn btn-primary btn-block">Zamawiam</button>
       <p class="muted small">Płatność: przelew tradycyjny. Dane do przelewu (z numerem zamówienia w tytule) pokażemy zaraz po złożeniu zamówienia i wyślemy na e-mail.</p>
     </form>`;
@@ -530,6 +534,12 @@ async function submitOrder(e) {
   const form = e.target;
   const err = $('#formError');
   err.hidden = true;
+  if (form.acceptTerms && !form.acceptTerms.checked) {
+    const m = 'Aby złożyć zamówienie, zaakceptuj regulamin sklepu.';
+    err.textContent = (window.VibeI18n ? window.VibeI18n.t(m) : m);
+    err.hidden = false;
+    return;
+  }
   const deliveryMethod = (form.querySelector('input[name="deliveryMethod"]:checked') || {}).value || 'kurier';
   const payload = {
     customer: {

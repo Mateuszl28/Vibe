@@ -51,6 +51,8 @@
     'Kod paczkomatu': 'Parcel locker code',
     'Podaj kod paczkomatu InPost, do którego mamy wysłać przesyłkę.': 'Enter the InPost parcel locker code we should ship to.',
     'Kod rabatowy': 'Discount code', 'Zastosuj': 'Apply', 'Zamawiam': 'Place order',
+    'Akceptuję': 'I accept the', 'regulamin sklepu': 'shop terms',
+    'Aby złożyć zamówienie, zaakceptuj regulamin sklepu.': 'To place an order, please accept the shop terms.',
     'Płatność: przelew tradycyjny. Dane do przelewu (z numerem zamówienia w tytule) pokażemy zaraz po złożeniu zamówienia i wyślemy na e-mail.':
       'Payment: bank transfer. We will show the transfer details (with the order number in the title) right after you place the order and send them by e-mail.',
     'Dostawa (Kurier)': 'Shipping (Courier)', 'Dostawa (Paczkomat)': 'Shipping (Parcel locker)',
@@ -107,6 +109,8 @@
     'Kod paczkomatu': 'Paketstation-Code',
     'Podaj kod paczkomatu InPost, do którego mamy wysłać przesyłkę.': 'Gib den InPost-Paketstation-Code an, an den wir versenden sollen.',
     'Kod rabatowy': 'Rabattcode', 'Zastosuj': 'Anwenden', 'Zamawiam': 'Bestellen',
+    'Akceptuję': 'Ich akzeptiere die', 'regulamin sklepu': 'AGB des Shops',
+    'Aby złożyć zamówienie, zaakceptuj regulamin sklepu.': 'Bitte akzeptiere die AGB des Shops, um zu bestellen.',
     'Płatność: przelew tradycyjny. Dane do przelewu (z numerem zamówienia w tytule) pokażemy zaraz po złożeniu zamówienia i wyślemy na e-mail.':
       'Zahlung: Banküberweisung. Die Überweisungsdaten (mit der Bestellnummer im Betreff) zeigen wir direkt nach der Bestellung und senden sie per E-Mail.',
     'Dostawa (Kurier)': 'Versand (Kurier)', 'Dostawa (Paczkomat)': 'Versand (Paketstation)',
