@@ -384,7 +384,7 @@ function renderTemplate(absPath) {
   if (html.includes('__JSONLD__')) html = html.replace('__JSONLD__', buildJsonLd());
   if (html.includes('__CATALOG__')) html = html.replace('__CATALOG__', buildCatalogHtml());
   if (html.includes('__FAQ__')) html = html.replace('__FAQ__', buildFaqHtml());
-  html = html.replace('</body>', COOKIE_HTML + '</body>');
+  html = html.replace('</body>', PAYMENTS_HTML + COOKIE_HTML + '</body>');
   renderCache[absPath] = html;
   return html;
 }
@@ -409,6 +409,18 @@ const COOKIE_HTML = `<div class="cookie-bar" id="cookieBar" hidden>
   <button class="btn btn-primary" id="cookieAccept" type="button">Akceptuję</button>
 </div>
 <script>(function(){try{if(!localStorage.getItem('vibe_cookie')){var b=document.getElementById('cookieBar');if(b){b.hidden=false;document.getElementById('cookieAccept').onclick=function(){localStorage.setItem('vibe_cookie','1');b.hidden=true;};}}}catch(e){}})();</script>`;
+// Pasek akceptowanych metod platnosci (Przelewy24) — wstrzykiwany do kazdej strony przed </body>.
+// Logotypy lokalne w /img/payments/ (mozna podmienic na oficjalne pliki z paczki ZIP z panelu Przelewy24).
+const PAYMENTS_HTML = `<style>.pay-bar{border-top:1px solid #eee;background:#fafafa;padding:14px 20px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 14px}.pay-bar__label{font-size:.82rem;color:#6b7280;font-weight:500}.pay-bar__logos{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}.pay-bar__logos img{height:24px;width:auto;display:block}</style>
+<div class="pay-bar" role="group" aria-label="Akceptowane metody płatności">
+  <span class="pay-bar__label">Bezpieczne płatności</span>
+  <span class="pay-bar__logos">
+    <img src="/img/payments/blik.svg" alt="BLIK" width="36" height="24" loading="lazy" />
+    <img src="/img/payments/visa.svg" alt="Visa" width="36" height="24" loading="lazy" />
+    <img src="/img/payments/mastercard.svg" alt="Mastercard" width="36" height="24" loading="lazy" />
+    <img src="/img/payments/przelewy24.svg" alt="Przelewy24" width="72" height="24" loading="lazy" />
+  </span>
+</div>`;
 // Strony aplikacji (konta) — NIE trafiaja do sitemap, maja noindex w HTML.
 const APP_PAGES = {
   '/logowanie': 'auth.html',
