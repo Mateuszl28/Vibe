@@ -7,6 +7,7 @@
  */
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
@@ -674,32 +675,123 @@ function serveStatic(req, res, urlPath) {
   });
 }
 
+// ---- walidacja adresu (PL): dane musza byc realne, nie losowe ----
+const PL_LETTER = 'A-Za-zĄąĆćĘꟳłŃńÓ󌜟żŹź';
+const RE_PL_LETTER = new RegExp(`[${PL_LETTER}]`, 'g');
+
+// Kod pocztowy: poprawny format polski NN-NNN (00-000 to placeholder, odrzucamy).
+function isPostalFormatPL(s) {
+  const v = String(s || '').trim();
+  return /^\d{2}-\d{3}$/.test(v) && v !== '00-000';
+}
+// Miasto: same litery (+ spacje, myslnik, apostrof, kropka), min. 2 litery, bez cyfr.
+function isCityFormatPL(s) {
+  const v = String(s || '').trim();
+  if (v.length < 2 || v.length > 40 || /\d/.test(v)) return false;
+  if (!new RegExp(`^[${PL_LETTER} .'\\-]+$`).test(v)) return false;
+  return (v.match(RE_PL_LETTER) || []).length >= 2;
+}
+// Ulica: musi miec nazwe (>=2 litery) ORAZ numer domu (cyfra) — odrzuca "asdf", "1234".
+function isStreetRealPL(s) {
+  const v = String(s || '').trim();
+  if (v.length < 3 || v.length > 80) return false;
+  return (v.match(RE_PL_LETTER) || []).length >= 2 && /\d/.test(v);
+}
+// Telefon PL: po odrzuceniu prefiksu kraju dokladnie 9 cyfr, nie wszystkie identyczne.
+function normalizePhonePL(s) {
+  let p = String(s || '').replace(/[^\d+]/g, '');
+  if (p.startsWith('+48')) p = p.slice(3);
+  else if (p.startsWith('0048')) p = p.slice(4);
+  else if (p.length === 11 && p.startsWith('48')) p = p.slice(2);
+  return p;
+}
+function isPhoneRealPL(s) {
+  const p = normalizePhonePL(s);
+  return /^\d{9}$/.test(p) && !/^(\d)\1{8}$/.test(p);
+}
+
+// Porownanie miasta z nazwami zwroconymi przez baze pocztowa (luzne, bez diakrytykow).
+function normCity(s) {
+  return String(s || '').toLowerCase().replace(/ł/g, 'l')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, '');
+}
+function cityMatchesPlaces(input, places) {
+  const a = normCity(input);
+  return places.some((p) => {
+    const b = normCity(p);
+    return a && b && (a === b || (a.length >= 3 && (a.includes(b) || b.includes(a))));
+  });
+}
+
+// Weryfikacja kodu pocztowego w realnej bazie (Zippopotam, darmowe, bez klucza).
+// exists: true=istnieje, false=nie ma takiego kodu, null=nie udalo sie sprawdzic (fallback do formatu).
+const postalCache = new Map();
+function fetchPostalPL(code) {
+  return new Promise((resolve) => {
+    if (postalCache.has(code)) return resolve(postalCache.get(code));
+    let done = false;
+    const finish = (v, cacheIt) => { if (done) return; done = true; if (cacheIt) postalCache.set(code, v); resolve(v); };
+    const req = https.get(`https://api.zippopotam.us/pl/${encodeURIComponent(code)}`, { timeout: 4000 }, (r) => {
+      if (r.statusCode === 404) { r.resume(); return finish({ exists: false, places: [] }, true); }
+      if (r.statusCode !== 200) { r.resume(); return finish({ exists: null, places: [] }, false); }
+      let data = ''; r.setEncoding('utf8');
+      r.on('data', (c) => { data += c; if (data.length > 1e5) req.destroy(); });
+      r.on('end', () => {
+        try {
+          const j = JSON.parse(data);
+          const places = (j.places || []).map((p) => p['place name']).filter(Boolean);
+          finish({ exists: true, places }, true);
+        } catch { finish({ exists: null, places: [] }, false); }
+      });
+    });
+    req.on('timeout', () => { req.destroy(); finish({ exists: null, places: [] }, false); });
+    req.on('error', () => finish({ exists: null, places: [] }, false));
+  });
+}
+
 // ---- zamowienia (baza danych) ----
-function validateOrder(payload) {
+async function validateOrder(payload) {
   const errors = [];
   const c = payload && payload.customer ? payload.customer : {};
   const method = payload && payload.deliveryMethod === 'paczkomat' ? 'paczkomat' : 'kurier';
   if (!c.name || String(c.name).trim().length < 2) errors.push('Podaj imie i nazwisko.');
   if (!c.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(c.email))) errors.push('Podaj poprawny e-mail.');
+  if (!isPhoneRealPL(c.phone)) errors.push('Podaj poprawny numer telefonu (9 cyfr, np. 600 700 800).');
   if (method === 'paczkomat') {
     if (!payload.parcelLocker || String(payload.parcelLocker).trim().length < 3) errors.push('Podaj kod paczkomatu.');
   } else {
-    if (!c.street || String(c.street).trim().length < 3) errors.push('Podaj ulice i numer.');
-    if (!c.postalCode || !/^\d{2}-\d{3}$/.test(String(c.postalCode).trim())) errors.push('Podaj kod pocztowy (format 00-000).');
-    if (!c.city || String(c.city).trim().length < 2) errors.push('Podaj miasto.');
+    if (!isStreetRealPL(c.street)) errors.push('Podaj ulicę i numer domu (np. Kwiatowa 12).');
+    if (!isCityFormatPL(c.city)) errors.push('Podaj poprawną nazwę miasta (same litery).');
+    const postal = String(c.postalCode || '').trim();
+    if (!isPostalFormatPL(postal)) {
+      errors.push('Podaj kod pocztowy w formacie 00-000.');
+    } else {
+      const info = await fetchPostalPL(postal);
+      if (info.exists === false) {
+        errors.push(`Kod pocztowy ${postal} nie istnieje — sprawdź jego poprawność.`);
+      } else if (info.exists === true && info.places.length && isCityFormatPL(c.city)) {
+        if (!cityMatchesPlaces(c.city, info.places)) {
+          errors.push(`Kod ${postal} nie pasuje do miasta „${String(c.city).trim()}”. Dla tego kodu poprawne to: ${info.places.slice(0, 3).join(', ')}.`);
+        }
+      } else if (info.exists === null) {
+        console.warn(`[ADRES] kod ${postal} niezweryfikowany (baza pocztowa niedostepna) — przepuszczam po formacie.`);
+      }
+    }
   }
   if (!Array.isArray(payload.items) || payload.items.length === 0) errors.push('Koszyk jest pusty.');
   return errors;
 }
 
-function handleCreateOrder(req, res, raw, user) {
+async function handleCreateOrder(req, res, raw, user) {
+  // Tylko zalogowani uzytkownicy moga zlozyc zamowienie.
+  if (!user) return sendJson(res, 401, { error: 'Aby złożyć zamówienie, zaloguj się lub załóż konto.' });
   let payload;
   try {
     payload = JSON.parse(raw || '{}');
   } catch {
     return sendJson(res, 400, { error: 'Niepoprawny JSON.' });
   }
-  const errors = validateOrder(payload);
+  const errors = await validateOrder(payload);
   if (errors.length) return sendJson(res, 400, { error: errors.join(' ') });
 
   // Ceny liczymy PO STRONIE SERWERA na podstawie bazy (nie ufamy klientowi)
@@ -1201,7 +1293,7 @@ const server = http.createServer(async (req, res) => {
     if (method === 'POST' && url === '/api/orders') {
       try {
         const raw = await readBody(req);
-        return handleCreateOrder(req, res, raw, currentUser(req));
+        return await handleCreateOrder(req, res, raw, currentUser(req));
       } catch (err) {
         return sendJson(res, 400, { error: err.message });
       }

@@ -8,6 +8,7 @@ let sortBy = 'featured';
 let shopSettings = { freeShippingThreshold: 0, shippingCost: 25, geowidgetToken: '' };
 let appliedDiscount = null;
 let cart = loadCart();
+let ACCOUNT = null; // zalogowany uzytkownik (z /api/auth/me) lub null
 
 /* ====== Pomocnicze ====== */
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -342,18 +343,18 @@ function renderCart() {
 function checkoutFormHtml() {
   return `<h3>Dane do zamówienia</h3>
     <form id="checkoutForm" class="checkout-form">
-      <label>Imię i nazwisko<input name="name" required minlength="2" /></label>
-      <label>E-mail<input name="email" type="email" required /></label>
-      <label>Telefon<input name="phone" type="tel" required /></label>
+      <label>Imię i nazwisko<input name="name" required minlength="2" value="${escHtml((ACCOUNT && ACCOUNT.name) || '')}" /></label>
+      <label>E-mail<input name="email" type="email" required value="${escHtml((ACCOUNT && ACCOUNT.email) || '')}" /></label>
+      <label>Telefon<input name="phone" type="tel" inputmode="tel" required placeholder="np. 600 700 800" /></label>
       <div class="delivery-choice">
         <label class="dm-opt"><input type="radio" name="deliveryMethod" value="kurier" checked /> <span>🚚 Kurier</span></label>
         <label class="dm-opt"><input type="radio" name="deliveryMethod" value="paczkomat" /> <span>📦 Paczkomat</span></label>
       </div>
       <div id="kurierFields">
-        <label>Ulica i numer<input name="street" /></label>
+        <label>Ulica i numer<input name="street" placeholder="np. Kwiatowa 12" /></label>
         <div class="addr-row">
-          <label>Kod pocztowy<input name="postalCode" placeholder="00-000" /></label>
-          <label>Miasto<input name="city" /></label>
+          <label>Kod pocztowy<input name="postalCode" placeholder="00-000" inputmode="numeric" maxlength="6" autocomplete="postal-code" /></label>
+          <label>Miasto<input name="city" placeholder="np. Leszno" autocomplete="address-level2" /></label>
         </div>
       </div>
       <div id="paczkomatFields" hidden>
@@ -430,8 +431,29 @@ function updateDeliveryFields() {
   ['street', 'postalCode', 'city'].forEach((n) => { const el = form.elements[n]; if (el) el.required = !isLocker; });
   const locker = form.elements['parcelLocker']; if (locker) locker.required = isLocker;
 }
-function openCheckout() {
+function loginGateHtml() {
+  const next = encodeURIComponent('/koszyk');
+  return `<div class="login-gate" style="text-align:center;padding:8px 4px">
+      <div style="font-size:2rem;margin-bottom:6px">🔒</div>
+      <h3>Zaloguj się, aby kupić</h3>
+      <p class="muted" style="margin:8px 0 18px">Zamówienia mogą składać tylko zalogowani użytkownicy. Zaloguj się lub załóż darmowe konto — zajmie chwilę.</p>
+      <a class="btn btn-primary btn-block" href="/logowanie?next=${next}">Zaloguj się</a>
+      <a class="btn btn-ghost btn-block" style="margin-top:10px" href="/rejestracja?next=${next}">Załóż konto</a>
+    </div>`;
+}
+async function openCheckout() {
   if (!cart.length) { toast('Koszyk jest pusty'); return; }
+  // Sprawdz logowanie — gdy stan nieznany, dopytaj serwera.
+  if (!ACCOUNT) {
+    try { const r = await fetch('/api/auth/me'); ACCOUNT = (await r.json()).user || null; } catch {}
+  }
+  if (!ACCOUNT) {
+    $('#checkoutContent').innerHTML = loginGateHtml();
+    if (window.VibeI18n) window.VibeI18n.apply();
+    if ($('#cartDrawer')) $('#cartDrawer').hidden = true;
+    $('#checkoutModal').hidden = false;
+    return;
+  }
   appliedDiscount = null;
   $('#checkoutContent').innerHTML = checkoutFormHtml();
   $('#checkoutForm').addEventListener('submit', submitOrder);
@@ -439,6 +461,12 @@ function openCheckout() {
   $$('#checkoutForm input[name="deliveryMethod"]').forEach((r) => r.addEventListener('change', () => { updateDeliveryFields(); renderCheckoutSummary(); }));
   const pick = $('#pickLocker');
   if (pick && shopSettings.geowidgetToken) { pick.hidden = false; pick.addEventListener('click', openGeowidget); }
+  // Kod pocztowy: automatyczne wstawianie myslnika (00-000)
+  const pc = $('#checkoutForm').elements['postalCode'];
+  if (pc) pc.addEventListener('input', () => {
+    const d = pc.value.replace(/\D/g, '').slice(0, 5);
+    pc.value = d.length > 2 ? d.slice(0, 2) + '-' + d.slice(2) : d;
+  });
   updateDeliveryFields();
   renderCheckoutSummary();
   if ($('#cartDrawer')) $('#cartDrawer').hidden = true;
@@ -541,6 +569,17 @@ async function submitOrder(e) {
     return;
   }
   const deliveryMethod = (form.querySelector('input[name="deliveryMethod"]:checked') || {}).value || 'kurier';
+  // Szybka walidacja formatu po stronie klienta (serwer sprawdza realność kodu).
+  const showErr = (m) => { err.textContent = (window.VibeI18n ? window.VibeI18n.t(m) : m); err.hidden = false; };
+  const phoneDigits = String(form.phone.value).replace(/[^\d+]/g, '').replace(/^(\+48|0048)/, '').replace(/^48(?=\d{9}$)/, '');
+  if (!/^\d{9}$/.test(phoneDigits)) { showErr('Podaj poprawny numer telefonu (9 cyfr, np. 600 700 800).'); return; }
+  if (deliveryMethod !== 'paczkomat') {
+    const street = String(form.street.value).trim();
+    if ((street.match(/[A-Za-zĄąĆćĘꟳłŃńÓ󌜟żŹź]/g) || []).length < 2 || !/\d/.test(street)) { showErr('Podaj ulicę i numer domu (np. Kwiatowa 12).'); return; }
+    if (!/^\d{2}-\d{3}$/.test(String(form.postalCode.value).trim())) { showErr('Podaj kod pocztowy w formacie 00-000.'); return; }
+    const city = String(form.city.value).trim();
+    if (/\d/.test(city) || (city.match(/[A-Za-zĄąĆćĘꟳłŃńÓ󌜟żŹź]/g) || []).length < 2) { showErr('Podaj poprawną nazwę miasta (same litery).'); return; }
+  }
   const payload = {
     customer: {
       name: form.name.value, email: form.email.value, phone: form.phone.value,
@@ -773,6 +812,7 @@ async function initAccountHeader() {
   try {
     const res = await fetch('/api/auth/me');
     const data = await res.json();
+    ACCOUNT = data.user || null;
     const label = $('#accountLabel');
     if (data.user) {
       if (label) label.textContent = (data.user.name || '').split(' ')[0] || 'Konto';

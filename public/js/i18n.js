@@ -53,6 +53,14 @@
     'Kod rabatowy': 'Discount code', 'Zastosuj': 'Apply', 'Zamawiam': 'Place order',
     'Akceptuję': 'I accept the', 'regulamin sklepu': 'shop terms', 'Bezpieczne płatności': 'Secure payments',
     'Aby złożyć zamówienie, zaakceptuj regulamin sklepu.': 'To place an order, please accept the shop terms.',
+    'Zaloguj się, aby kupić': 'Log in to buy',
+    'Zamówienia mogą składać tylko zalogowani użytkownicy. Zaloguj się lub załóż darmowe konto — zajmie chwilę.':
+      'Only logged-in users can place orders. Log in or create a free account — it only takes a moment.',
+    'Zaloguj się': 'Log in', 'Załóż konto': 'Create account',
+    'Podaj poprawny numer telefonu (9 cyfr, np. 600 700 800).': 'Enter a valid phone number (9 digits, e.g. 600 700 800).',
+    'Podaj ulicę i numer domu (np. Kwiatowa 12).': 'Enter the street and house number (e.g. Kwiatowa 12).',
+    'Podaj kod pocztowy w formacie 00-000.': 'Enter a postal code in the 00-000 format.',
+    'Podaj poprawną nazwę miasta (same litery).': 'Enter a valid city name (letters only).',
     'Płatność: przelew tradycyjny. Dane do przelewu (z numerem zamówienia w tytule) pokażemy zaraz po złożeniu zamówienia i wyślemy na e-mail.':
       'Payment: bank transfer. We will show the transfer details (with the order number in the title) right after you place the order and send them by e-mail.',
     'Dostawa (Kurier)': 'Shipping (Courier)', 'Dostawa (Paczkomat)': 'Shipping (Parcel locker)',
@@ -111,6 +119,14 @@
     'Kod rabatowy': 'Rabattcode', 'Zastosuj': 'Anwenden', 'Zamawiam': 'Bestellen',
     'Akceptuję': 'Ich akzeptiere die', 'regulamin sklepu': 'AGB des Shops', 'Bezpieczne płatności': 'Sichere Zahlungen',
     'Aby złożyć zamówienie, zaakceptuj regulamin sklepu.': 'Bitte akzeptiere die AGB des Shops, um zu bestellen.',
+    'Zaloguj się, aby kupić': 'Zum Kaufen anmelden',
+    'Zamówienia mogą składać tylko zalogowani użytkownicy. Zaloguj się lub załóż darmowe konto — zajmie chwilę.':
+      'Bestellungen können nur angemeldete Nutzer aufgeben. Melde dich an oder erstelle ein kostenloses Konto — es dauert nur einen Moment.',
+    'Zaloguj się': 'Anmelden', 'Załóż konto': 'Konto erstellen',
+    'Podaj poprawny numer telefonu (9 cyfr, np. 600 700 800).': 'Gib eine gültige Telefonnummer an (9 Ziffern, z. B. 600 700 800).',
+    'Podaj ulicę i numer domu (np. Kwiatowa 12).': 'Gib Straße und Hausnummer an (z. B. Kwiatowa 12).',
+    'Podaj kod pocztowy w formacie 00-000.': 'Gib eine Postleitzahl im Format 00-000 an.',
+    'Podaj poprawną nazwę miasta (same litery).': 'Gib einen gültigen Stadtnamen an (nur Buchstaben).',
     'Płatność: przelew tradycyjny. Dane do przelewu (z numerem zamówienia w tytule) pokażemy zaraz po złożeniu zamówienia i wyślemy na e-mail.':
       'Zahlung: Banküberweisung. Die Überweisungsdaten (mit der Bestellnummer im Betreff) zeigen wir direkt nach der Bestellung und senden sie per E-Mail.',
     'Dostawa (Kurier)': 'Versand (Kurier)', 'Dostawa (Paczkomat)': 'Versand (Paketstation)',
