@@ -871,10 +871,10 @@ const SMTP = {
   to: process.env.CONTACT_TO || process.env.SMTP_USER || ''
 };
 
-// Adresy powiadamiane o NOWYCH ZAMOWIENIACH (skrzynka sklepu).
-// Zawsze dolaczamy vip@vipnieruchomosci.eu (mozna dopisac wiecej przez ORDER_NOTIFY_TO, po przecinku).
+// Adresy powiadamiane o NOWYCH ZAMOWIENIACH (oprocz klienta, ktory dostaje osobne potwierdzenie).
+// Staly zestaw: kontakt@vibeleszno.com + vip@vipnieruchomosci.eu (mozna dopisac wiecej przez ORDER_NOTIFY_TO, po przecinku).
 const ORDER_NOTIFY = [...new Set(
-  [SMTP.to, process.env.ORDER_NOTIFY_TO || '', 'kontakt@vibeleszno.com', 'vip@vipnieruchomosci.eu']
+  ['kontakt@vibeleszno.com', 'vip@vipnieruchomosci.eu', process.env.ORDER_NOTIFY_TO || '']
     .join(',').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
 )].join(', ');
 
