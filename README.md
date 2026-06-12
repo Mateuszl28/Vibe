@@ -137,15 +137,25 @@ nie IP:port) — z niej budowane są wszystkie adresy w canonical, hreflang, Ope
 - **Wyszukiwarka + sortowanie** na stronie głównej (po nazwie; sort: polecane / cena / nazwa),
   obok filtrów kategorii.
 
-### Bezpieczeństwo bazy
+### Bezpieczeństwo
 
 - Hasła hashowane `scrypt` z losową solą (wbudowany `crypto`), porównanie w czasie stałym.
 - Wszystkie zapytania **parametryzowane** (prepared statements) — brak SQL injection.
-- Sesje: token kryptograficznie losowy, cookie `HttpOnly` + `SameSite=Strict`.
+- Sesje: token kryptograficznie losowy, cookie `HttpOnly` + `SameSite=Strict` + **`Secure` na HTTPS**
+  (rozpoznawane po `X-Forwarded-Proto` od nginx; na bezpośrednim `http://IP:8080` bez `Secure`).
+- **Nagłówki bezpieczeństwa:** `Content-Security-Policy` (`default-src 'self'`, `script-src` bez
+  `'unsafe-inline'` — realna ochrona przed XSS; dozwolone tylko Google Fonts + InPost Geowidget),
+  `Strict-Transport-Security` (HSTS), `X-Content-Type-Options`, `X-Frame-Options: DENY`,
+  `Referrer-Policy`, `Permissions-Policy` (kamera/mikrofon off, geolokalizacja tylko dla mapy paczkomatów).
+- **CSRF:** żądania zmieniające stan (`POST`/`PUT`/`DELETE` pod `/api/`) wymagają zgodnego `Origin`
+  (uzupełnienie `SameSite=Strict`).
+- **Path traversal:** statyka serwowana wyłącznie z `public/`; pliki API z nagłówkiem `Cache-Control: no-store`.
+- **Brute-force / spam:** limit prób logowania na IP oraz limity rejestracji (10/h) i formularza
+  kontaktowego (6/10 min). Open redirect przy `?next=` zablokowany (tylko ścieżki względne).
 - Plik `vibe.db` poza `public/` (niedostępny przez WWW), prawa `600`, w `.gitignore`.
 - Endpointy admina chronione kontrolą roli po stronie serwera; API nie zwraca hashy haseł.
-- Ochrona logowania przed brute-force (limit prób na IP), nagłówki bezpieczeństwa.
-- **Zmień domyślne hasło admina** ustawiając `ADMIN_PASSWORD`. Przy HTTPS dodaj `Secure` do cookie.
+- **Zamówienie może złożyć tylko zalogowany użytkownik** (`POST /api/orders` → 401 bez sesji).
+- **Zmień domyślne hasło admina** ustawiając `ADMIN_PASSWORD` (i osobne, mocne hasło SMTP).
 
 ---
 
@@ -237,15 +247,21 @@ Plik `orders.json` jest w `.gitignore` — zamówienia nie trafiają do repo.
 
 ## API
 
-| Metoda | Endpoint              | Opis                          |
-|--------|-----------------------|-------------------------------|
-| GET    | `/api/health`         | status serwera                |
-| GET    | `/api/products`       | lista produktów               |
-| GET    | `/api/products/:id`   | jeden produkt                 |
-| POST   | `/api/orders`         | złożenie zamówienia (JSON)    |
+| Metoda | Endpoint              | Opis                                       |
+|--------|-----------------------|--------------------------------------------|
+| GET    | `/api/health`         | status serwera                             |
+| GET    | `/api/products`       | lista produktów                            |
+| GET    | `/api/products/:id`   | jeden produkt                              |
+| POST   | `/api/orders`         | złożenie zamówienia (JSON) — **wymaga logowania** |
 
-Ceny zamówienia liczone są **po stronie serwera** na podstawie `products.json`
+Ceny zamówienia liczone są **po stronie serwera** na podstawie bazy
 (klient nie może podać własnej ceny).
+
+**Walidacja adresu (kurier):** dane muszą być realne, nie losowe — kod pocztowy jest
+weryfikowany w **prawdziwej bazie pocztowej** (Zippopotam PL, darmowe API bez klucza):
+odrzucane są nieistniejące kody oraz niezgodność kod ↔ miasto. Dodatkowo: ulica musi mieć
+nazwę i numer, miasto same litery, telefon 9 cyfr. Gdy baza pocztowa jest chwilowo niedostępna,
+walidacja działa **fail-open** (sprawdza sam format), żeby awaria API nie blokowała sprzedaży.
 
 ---
 
@@ -260,9 +276,10 @@ Sklep działa w modelu **przelewu tradycyjnego**: po złożeniu zamówienia klie
 **instrukcję przelewu do skopiowania** (odbiorca, nr konta, **tytuł = numer zamówienia**, kwota)
 oraz dostaje te dane w e-mailu potwierdzającym. Realizacja po zaksięgowaniu wpłaty. Dane do przelewu
 ustawia się w `server.js` (stała `PAYMENT`) lub przez env `PAY_ACCOUNT` / `PAY_RECIPIENT` / `PAY_BANK`.
-Powiadomienie o nowym zamówieniu trafia na skrzynkę sklepu i zawsze na `vip@vipnieruchomosci.eu`
-(rozszerzalne przez `ORDER_NOTIFY_TO`). Integrację bramki (Stripe / Przelewy24) można dodać w
-`POST /api/orders`.
+Powiadomienie o nowym zamówieniu trafia na stały zestaw adresów biznesowych:
+`kontakt@vibeleszno.com` + `vip@vipnieruchomosci.eu` (rozszerzalne przez `ORDER_NOTIFY_TO`),
+a klient dostaje osobne potwierdzenie na swój e-mail. Integrację bramki (Stripe / Przelewy24)
+można dodać w `POST /api/orders`.
 
 > **Dostawa:** wybór **Kurier / Paczkomat** w kasie (przy paczkomacie wymagany kod), koszt 25 zł
 > (ustawienie `Koszt dostawy` w panelu / `shipping_cost` w bazie).
