@@ -21,7 +21,8 @@ async function api(url, opts) {
 }
 function getNext() {
   const n = new URLSearchParams(location.search).get('next');
-  return n && n.startsWith('/') ? n : null;
+  // Tylko sciezki wzgledne tej samej domeny — blokuje open redirect (//evil.com, /\evil.com).
+  return n && /^\/(?![/\\])/.test(n) ? n : null;
 }
 async function doLogout() {
   await api('/api/auth/logout', { method: 'POST' });

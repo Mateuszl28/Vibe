@@ -114,29 +114,74 @@ if (ADMIN_PASSWORD === 'admin123') {
   console.warn('[BEZPIECZENSTWO] Admin uzywa DOMYSLNEGO hasla "admin123". Ustaw ADMIN_PASSWORD w konfiguracji!');
 }
 
-// ---- Sesje (cookie HttpOnly + SameSite) ----
+// ---- Sesje (cookie HttpOnly + SameSite + Secure na HTTPS) ----
 const SESSION_DAYS = 30;
+// HTTPS rozpoznajemy po naglowku od nginx (proxy_set_header X-Forwarded-Proto $scheme).
+function isSecureReq(req) {
+  return String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
+}
 function currentUser(req) {
   const token = auth.parseCookies(req.headers.cookie).vibe_session;
   return db.getSessionUser(token);
 }
-function startSession(res, userId) {
+function sessionCookie(req, value, maxAge) {
+  const secure = isSecureReq(req) ? ' Secure;' : '';
+  return `vibe_session=${value}; HttpOnly;${secure} SameSite=Strict; Path=/; Max-Age=${maxAge}`;
+}
+function startSession(req, res, userId) {
   const token = auth.newToken();
   const expires = Date.now() + SESSION_DAYS * 24 * 3600 * 1000;
   db.createSession(token, userId, expires);
-  // Uwaga: dodaj " Secure;" gdy uruchomisz HTTPS.
-  res.setHeader('Set-Cookie', `vibe_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_DAYS * 24 * 3600}`);
+  res.setHeader('Set-Cookie', sessionCookie(req, token, SESSION_DAYS * 24 * 3600));
 }
 function endSession(req, res) {
   const token = auth.parseCookies(req.headers.cookie).vibe_session;
   if (token) db.deleteSession(token);
-  res.setHeader('Set-Cookie', 'vibe_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+  res.setHeader('Set-Cookie', sessionCookie(req, '', 0));
 }
-function setSecurityHeaders(res) {
+
+// Content-Security-Policy: 'self' + tylko zaufane zewnetrzne zrodla (Google Fonts, InPost Geowidget).
+// Brak inline <script>/on*= w kodzie sklepu, wiec script-src moze byc bez 'unsafe-inline' (realna ochrona przed XSS).
+const CSP = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self' https://geowidget.inpost.pl",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://geowidget.inpost.pl",
+  "font-src 'self' https://fonts.gstatic.com data:",
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self' https://*.inpost.pl https://*.easypack24.net",
+  "frame-src https://geowidget.inpost.pl",
+  "worker-src 'self' blob:"
+].join('; ');
+function setSecurityHeaders(req, res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('X-XSS-Protection', '0');
+  res.setHeader('Content-Security-Policy', CSP);
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
+  if (isSecureReq(req)) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+}
+
+// Ochrona CSRF (uzupelnienie SameSite=Strict): dla zadan zmieniajacych stan
+// sprawdzamy, czy Origin zgadza sie z hostem. Brak Origin (np. nie-przegladarkowy klient) nie blokujemy.
+function sameOrigin(req) {
+  const o = req.headers.origin;
+  if (!o) return true;
+  try { return new URL(o).host === req.headers.host; } catch { return false; }
+}
+
+// Prosty limiter zadan na IP (rejestracja, formularz kontaktowy) — anty-spam/abuse.
+const rlBuckets = new Map();
+function rateLimited(key, max, windowMs) {
+  const now = Date.now();
+  const rec = rlBuckets.get(key);
+  if (!rec || now - rec.first > windowMs) { rlBuckets.set(key, { count: 1, first: now }); return false; }
+  rec.count++;
+  return rec.count > max;
 }
 
 // ---- Ochrona przed brute-force logowania (limit prob na IP) ----
@@ -622,7 +667,8 @@ function sendJson(res, status, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(body)
+    'Content-Length': Buffer.byteLength(body),
+    'Cache-Control': 'no-store' // odpowiedzi API (dane konta/zamowien) nie trafiaja do cache
   });
   res.end(body);
 }
@@ -650,7 +696,8 @@ function serveStatic(req, res, urlPath) {
   let rel = decodeURIComponent(urlPath.split('?')[0]);
   if (rel === '/' || rel === '') rel = '/index.html';
   const filePath = path.normalize(path.join(PUBLIC_DIR, rel));
-  if (!filePath.startsWith(PUBLIC_DIR)) {
+  // Musi byc DOKLADNIE w PUBLIC_DIR (nie tylko prefiks — blokuje np. ../public-secret).
+  if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + path.sep)) {
     res.writeHead(403);
     res.end('Forbidden');
     return;
@@ -930,7 +977,7 @@ function handleRegister(req, res, raw) {
   } catch (err) {
     return sendJson(res, 409, { error: 'Nie udalo sie utworzyc konta (e-mail zajety).' });
   }
-  startSession(res, user.id);
+  startSession(req, res, user.id);
   return sendJson(res, 201, { ok: true, user });
 }
 
@@ -945,7 +992,7 @@ function handleLogin(req, res, raw, ip) {
     return sendJson(res, 401, { error: 'Niepoprawny login lub haslo.' });
   }
   clearAttempts(ip);
-  startSession(res, row.id);
+  startSession(req, res, row.id);
   return sendJson(res, 200, { ok: true, user: db.getUserById(row.id) });
 }
 
@@ -1198,7 +1245,7 @@ function buildProductFromPayload(p) {
 
 // ---- router ----
 const server = http.createServer(async (req, res) => {
-  setSecurityHeaders(res);
+  setSecurityHeaders(req, res);
   const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   const url = req.url || '/';
   const method = req.method || 'GET';
@@ -1267,6 +1314,10 @@ const server = http.createServer(async (req, res) => {
 
   // API
   if (url.startsWith('/api/')) {
+    // CSRF: zadania zmieniajace stan musza pochodzic z tego samego origin.
+    if (method !== 'GET' && method !== 'HEAD' && !sameOrigin(req)) {
+      return sendJson(res, 403, { error: 'Nieprawidlowe zrodlo zadania (CSRF).' });
+    }
     if (method === 'GET' && url === '/api/health') {
       return sendJson(res, 200, { status: 'ok', products: PRODUCTS.length, time: new Date().toISOString() });
     }
@@ -1299,6 +1350,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
     if (method === 'POST' && url === '/api/contact') {
+      if (rateLimited('contact:' + ip, 6, 10 * 60 * 1000)) return sendJson(res, 429, { error: 'Za duzo wiadomosci. Sprobuj ponownie za chwile.' });
       try {
         const raw = await readBody(req);
         return handleContact(res, raw);
@@ -1344,6 +1396,7 @@ const server = http.createServer(async (req, res) => {
 
     // --- Uwierzytelnianie ---
     if (method === 'POST' && url === '/api/auth/register') {
+      if (rateLimited('reg:' + ip, 10, 60 * 60 * 1000)) return sendJson(res, 429, { error: 'Za duzo prob rejestracji. Sprobuj pozniej.' });
       try { return handleRegister(req, res, await readBody(req)); }
       catch (err) { return sendJson(res, 400, { error: err.message }); }
     }
