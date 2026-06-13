@@ -14,6 +14,25 @@ const tls = require('tls');
 const db = require('./lib/db');
 const auth = require('./lib/auth');
 const PRODUCT_I18N = require('./lib/product-i18n'); // tlumaczenia nazw/opisow produktow (SEO EN/DE)
+// Slownik tlumaczen produktow wstrzykiwany do przegladarki, zeby klient (i18n.js)
+// tlumaczyl nazwy i opisy produktow (karty, strona produktu, koszyk).
+// Laczymy slownik statyczny (lib/product-i18n.js) z tlumaczeniami z panelu admina
+// (pola name_en/name_de/desc_en/desc_de przy produkcie). Panel ma pierwszenstwo.
+let PRODUCT_I18N_SCRIPT = '';
+function buildProductI18nScript() {
+  const en = Object.assign({}, PRODUCT_I18N.en);
+  const de = Object.assign({}, PRODUCT_I18N.de);
+  try {
+    for (const p of db.getAllProducts()) {
+      if (p.name_en) en[p.name] = p.name_en;
+      if (p.desc_en) en[p.description] = p.desc_en;
+      if (p.name_de) de[p.name] = p.name_de;
+      if (p.desc_de) de[p.description] = p.desc_de;
+    }
+  } catch (e) { /* baza moze byc jeszcze niegotowa */ }
+  PRODUCT_I18N_SCRIPT = '<script>window.__VIBE_PRODUCT_I18N__=' +
+    JSON.stringify({ en, de }).replace(/</g, '\\u003c') + ';</script>';
+}
 
 const PORT = parseInt(process.env.PORT, 10) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -50,6 +69,7 @@ function loadProducts() {
 // Produkty zyja w bazie. Przy pierwszym uruchomieniu zasiewamy je z products.json.
 db.seedProductsIfEmpty(loadProducts());
 let PRODUCTS = db.getAllProducts();
+buildProductI18nScript();
 
 // Domyslne ustawienia sklepu (edytowalne z panelu admina)
 db.seedSettings({
@@ -430,7 +450,7 @@ function renderTemplate(absPath) {
   if (html.includes('__JSONLD__')) html = html.replace('__JSONLD__', buildJsonLd());
   if (html.includes('__CATALOG__')) html = html.replace('__CATALOG__', buildCatalogHtml());
   if (html.includes('__FAQ__')) html = html.replace('__FAQ__', buildFaqHtml());
-  html = html.replace('</body>', PAYMENTS_HTML + COOKIE_HTML + '</body>');
+  html = html.replace('</body>', PAYMENTS_HTML + COOKIE_HTML + PRODUCT_I18N_SCRIPT + '</body>');
   renderCache[absPath] = html;
   return html;
 }
@@ -558,7 +578,7 @@ function getProductHtml(p) {
       : '<p class="pp-stock soldout" id="ppStock">Produkt chwilowo niedostępny</p>'
   };
   let html = tpl.replace(/__([A-Z_]+)__/g, (m, key) => (key in repl ? repl[key] : m));
-  html = html.replace('</body>', COOKIE_HTML + '</body>');
+  html = html.replace('</body>', COOKIE_HTML + PRODUCT_I18N_SCRIPT + '</body>');
   productCache[p.id] = html;
   return html;
 }
@@ -640,6 +660,7 @@ function clearPageCache() {
 // Przeladowanie produktow z bazy + czyszczenie cache
 function refreshProducts() {
   PRODUCTS = applyRatings(db.getAllProducts());
+  buildProductI18nScript();
   clearPageCache();
 }
 
@@ -1224,6 +1245,7 @@ function slugify(s) {
 function buildProductFromPayload(p) {
   const name = String(p.name || '').trim();
   const category = p.category === 'bluza' ? 'bluza' : (p.category === 'koszulka' ? 'koszulka' : '');
+  const gender = ['meska', 'damska', 'unisex'].includes(p.gender) ? p.gender : 'unisex';
   const price = Math.round(Number(p.price) * 100) / 100;
   const colors = parseList(p.colors);
   const sizes = parseList(p.sizes);
@@ -1240,7 +1262,11 @@ function buildProductFromPayload(p) {
   if (!colors.length) errors.push('Podaj min. 1 kolor.');
   if (!sizes.length) errors.push('Podaj min. 1 rozmiar.');
   if (description.length < 3) errors.push('Podaj opis.');
-  return { errors, product: { name, category, price, colors, sizes, color, accent, description, featured, stock } };
+  const name_en = String(p.name_en || '').trim();
+  const name_de = String(p.name_de || '').trim();
+  const desc_en = String(p.desc_en || '').trim();
+  const desc_de = String(p.desc_de || '').trim();
+  return { errors, product: { name, category, price, colors, sizes, color, accent, description, featured, stock, gender, name_en, name_de, desc_en, desc_de } };
 }
 
 // ---- router ----

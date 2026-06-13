@@ -8,6 +8,7 @@
   const EN = {
     // Naglowek / nawigacja
     'Wszystko': 'All', 'Bluzy': 'Hoodies', 'Koszulki': 'T-shirts', 'Eventy': 'Events',
+    'Wszystkie': 'All', 'Męskie': "Men's", 'Damskie': "Women's",
     '🎟️ Kup bilet': '🎟️ Buy ticket', 'Konto': 'Account', 'Sklep': 'Shop',
     '← Wróć do sklepu': '← Back to shop', '← Sklep': '← Shop', 'Kolekcja': 'Collection', 'Wyloguj': 'Log out',
     // Hero
@@ -27,6 +28,8 @@
     'Bezpieczne płatności': 'Secure payments', 'szyfrowane transakcje': 'encrypted transactions',
     // Sklep
     'Cała kolekcja': 'Full collection', 'Wszystkie bluzy i koszulki Vibe': 'All Vibe hoodies and t-shirts',
+    'Ciepłe bluzy z kapturem — premium bawełna': 'Warm hoodies — premium cotton',
+    'Koszulki na co dzień — krój regular i oversize': 'Everyday t-shirts — regular and oversize fit',
     'Szukaj produktów…': 'Search products…',
     'Polecane': 'Featured', 'Cena: od najniższej': 'Price: low to high',
     'Cena: od najwyższej': 'Price: high to low', 'Nazwa: A–Z': 'Name: A–Z',
@@ -82,6 +85,7 @@
 
   const DE = {
     'Wszystko': 'Alle', 'Bluzy': 'Hoodies', 'Koszulki': 'T-Shirts', 'Eventy': 'Events',
+    'Wszystkie': 'Alle', 'Męskie': 'Herren', 'Damskie': 'Damen',
     '🎟️ Kup bilet': '🎟️ Ticket kaufen', 'Konto': 'Konto', 'Sklep': 'Shop',
     '← Wróć do sklepu': '← Zurück zum Shop', '← Sklep': '← Shop', 'Kolekcja': 'Kollektion', 'Wyloguj': 'Abmelden',
     'Nowa kolekcja — 2026': 'Neue Kollektion — 2026',
@@ -97,6 +101,8 @@
     'Premium jakość': 'Premium-Qualität', 'naturalna bawełna 100%': '100% Naturbaumwolle',
     'Bezpieczne płatności': 'Sichere Zahlungen', 'szyfrowane transakcje': 'verschlüsselte Transaktionen',
     'Cała kolekcja': 'Ganze Kollektion', 'Wszystkie bluzy i koszulki Vibe': 'Alle Vibe Hoodies und T-Shirts',
+    'Ciepłe bluzy z kapturem — premium bawełna': 'Warme Hoodies — Premium-Baumwolle',
+    'Koszulki na co dzień — krój regular i oversize': 'T-Shirts für jeden Tag — Regular- und Oversize-Schnitt',
     'Szukaj produktów…': 'Produkte suchen…',
     'Polecane': 'Empfohlen', 'Cena: od najniższej': 'Preis: aufsteigend',
     'Cena: od najwyższej': 'Preis: absteigend', 'Nazwa: A–Z': 'Name: A–Z',
@@ -437,6 +443,21 @@
   const MAPS = { en: EN, de: DE };
   const SKIP_TAGS = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, CODE: 1, PRE: 1 };
 
+  // Tlumaczenia produktow z bazy wstrzykniete przez serwer (nazwy + opisy).
+  // Dolaczamy je do slownikow, zeby tlumaczyc produkty dodane w panelu admina.
+  let productI18nMerged = false;
+  function mergeProductI18n() {
+    if (productI18nMerged) return;
+    try {
+      const inj = window.__VIBE_PRODUCT_I18N__;
+      if (inj) {
+        if (inj.en) Object.assign(EN, inj.en);
+        if (inj.de) Object.assign(DE, inj.de);
+        productI18nMerged = true; // ustawiamy dopiero gdy dane sa dostepne
+      }
+    } catch (e) {}
+  }
+
   function getLang() {
     try {
       const q = new URLSearchParams(location.search).get('lang');
@@ -486,6 +507,7 @@
   }
 
   function apply(root) {
+    mergeProductI18n();
     const lang = getLang();
     const scope = root || document.body;
     if (!scope) return;
@@ -521,4 +543,42 @@
   window.VibeI18n = { apply, setLang, getLang, t, en: EN, de: DE };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => apply());
   else apply();
+})();
+
+/* ===== Menu mobilne (hamburger) — wstrzykiwane na kazdej stronie ===== */
+(function () {
+  function initMobileNav() {
+    const inner = document.querySelector('.site-header .header-inner');
+    if (!inner || inner.querySelector('.nav-toggle')) return;
+    const nav = inner.querySelector('.main-nav');
+    if (!nav) return;
+
+    // Panel rozwijany — zbiera linki/przelacznik jezyka/CTA (na desktopie display:contents)
+    const drawer = document.createElement('div');
+    drawer.className = 'nav-drawer';
+    inner.insertBefore(drawer, nav);
+    const sel = '.main-nav, .lang-switch, .btn-ticket, a.account-btn[href="/ulubione"], :scope > .btn';
+    inner.querySelectorAll(sel).forEach((el) => { if (el !== drawer) drawer.appendChild(el); });
+
+    // Przycisk hamburger
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'nav-toggle';
+    btn.setAttribute('aria-label', 'Menu');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = '<span></span><span></span><span></span>';
+    inner.appendChild(btn);
+
+    const close = () => { inner.classList.remove('nav-open'); btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = inner.classList.toggle('nav-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    drawer.addEventListener('click', (e) => { if (e.target.closest('a')) close(); });
+    document.addEventListener('click', (e) => { if (!inner.contains(e.target)) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMobileNav);
+  else initMobileNav();
 })();

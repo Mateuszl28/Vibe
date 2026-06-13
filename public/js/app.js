@@ -3,6 +3,7 @@
 /* ====== Stan ====== */
 let PRODUCTS = [];
 let currentFilter = 'all';
+let currentGender = 'all'; // podzial bluz: all | meska | damska
 let searchQuery = '';
 let sortBy = 'featured';
 let shopSettings = { freeShippingThreshold: 0, shippingCost: 25, geowidgetToken: '' };
@@ -251,6 +252,10 @@ function sortProducts(list, by) {
 function renderProducts() {
   const grid = $('#productGrid');
   let list = PRODUCTS.filter(p => currentFilter === 'all' || p.category === currentFilter);
+  // Podzial bluz na Meskie/Damskie (unisex pokazujemy w obu)
+  if (currentFilter === 'bluza' && currentGender !== 'all') {
+    list = list.filter(p => p.gender === currentGender || p.gender === 'unisex');
+  }
   const q = searchQuery.trim().toLowerCase();
   if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || p.category.includes(q));
   list = sortProducts(list, sortBy);
@@ -629,9 +634,19 @@ function setFilter(f) {
   };
   const t = $('#shopTitle'); if (t) t.textContent = titles[f];
   const sub = $('#shopSub'); if (sub) sub.textContent = subs[f];
-  $$('.chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
+  $$('#filters .chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
   $$('.nav-link').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
+  // Zakladki Meskie/Damskie tylko dla bluz; przy zmianie kategorii resetujemy
+  const gt = $('#genderTabs');
+  if (gt) gt.hidden = (f !== 'bluza');
+  currentGender = 'all';
+  $$('#genderTabs .chip').forEach(c => c.classList.toggle('active', c.dataset.gender === 'all'));
   if ($('#productGrid')) renderProducts();
+}
+function setGender(g) {
+  currentGender = g;
+  $$('#genderTabs .chip').forEach(c => c.classList.toggle('active', c.dataset.gender === g));
+  renderProducts();
 }
 
 /* ====== Strona produktu: dodanie do koszyka ====== */
@@ -658,6 +673,9 @@ document.addEventListener('click', (e) => {
 
   // szybkie dodanie z karty (nie nawiguj do strony produktu)
   if (t.dataset && t.dataset.quick) { e.preventDefault(); e.stopPropagation(); addToCart(t.dataset.quick); return; }
+
+  // zakladki Meskie/Damskie (podzial bluz)
+  if (t.dataset && t.dataset.gender) { e.preventDefault(); setGender(t.dataset.gender); return; }
 
   // wybor opcji (rozmiar/kolor) na stronie produktu
   if (t.classList && t.classList.contains('opt')) {

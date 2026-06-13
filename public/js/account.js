@@ -580,6 +580,11 @@ async function initAdmin() {
       pForm.editId.value = p.id;
       pForm.name.value = p.name; pForm.category.value = p.category; pForm.price.value = p.price;
       pForm.stock.value = p.stock; pForm.featured.value = p.featured ? '1' : '0';
+      if (pForm.gender) pForm.gender.value = p.gender || 'unisex';
+      if (pForm.name_en) pForm.name_en.value = p.name_en || '';
+      if (pForm.name_de) pForm.name_de.value = p.name_de || '';
+      if (pForm.desc_en) pForm.desc_en.value = p.desc_en || '';
+      if (pForm.desc_de) pForm.desc_de.value = p.desc_de || '';
       pForm.colors.value = p.colors.join(', '); pForm.sizes.value = p.sizes.join(', ');
       pForm.color.value = p.color; pForm.accent.value = p.accent; pForm.description.value = p.description;
       $('#prodFormTitle').textContent = 'Edytuj: ' + p.name;
@@ -606,7 +611,10 @@ async function initAdmin() {
       id: editId || undefined,
       name: pForm.name.value, category: pForm.category.value, price: pForm.price.value,
       stock: pForm.stock.value, colors: pForm.colors.value, sizes: pForm.sizes.value, color: pForm.color.value,
-      accent: pForm.accent.value, description: pForm.description.value, featured: pForm.featured.value === '1'
+      accent: pForm.accent.value, description: pForm.description.value, featured: pForm.featured.value === '1',
+      gender: pForm.gender ? pForm.gender.value : 'unisex',
+      name_en: pForm.name_en ? pForm.name_en.value : '', name_de: pForm.name_de ? pForm.name_de.value : '',
+      desc_en: pForm.desc_en ? pForm.desc_en.value : '', desc_de: pForm.desc_de ? pForm.desc_de.value : ''
     };
     const { ok, data } = await api(editId ? '/api/admin/products/update' : '/api/admin/products', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
