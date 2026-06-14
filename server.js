@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
 const zlib = require('zlib');
+const { execFileSync } = require('child_process');
 const db = require('./lib/db');
 const auth = require('./lib/auth');
 const PRODUCT_I18N = require('./lib/product-i18n'); // tlumaczenia nazw/opisow produktow (SEO EN/DE)
@@ -754,6 +755,20 @@ function serveStatic(req, res, urlPath) {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': cacheControl
     };
+    // Negocjacja WebP: dla jpg/png, gdy klient akceptuje image/webp i istnieje wariant .webp,
+    // serwujemy lzejszy WebP pod tym samym URL (bez zmian w HTML, dziala dla SSR i klienta).
+    if (NEGOTIABLE_IMG.has(ext)) {
+      headers['Vary'] = 'Accept';
+      if (String(req.headers['accept'] || '').includes('image/webp')) {
+        const webpPath = filePath.slice(0, -ext.length) + '.webp';
+        if (fs.existsSync(webpPath)) {
+          headers['Content-Type'] = 'image/webp';
+          res.writeHead(200, headers);
+          fs.createReadStream(webpPath).pipe(res);
+          return;
+        }
+      }
+    }
     // Kompresja zasobow tekstowych (br/gzip). Binaria (obrazy/fonty) sa juz skompresowane.
     if (COMPRESSIBLE.has(ext)) {
       headers['Vary'] = 'Accept-Encoding';
@@ -797,6 +812,61 @@ function getCompressed(filePath, mtimeMs, enc) {
   }
   compCache.set(key, buf);
   return buf;
+}
+
+// ---- WebP: lzejsze warianty zdjec produktow (cwebp, systemowy binarny) ----
+const NEGOTIABLE_IMG = new Set(['.jpg', '.jpeg', '.png']);
+const WEBP_MAX = 1280;   // maks. dluzszy bok (wystarcza na retina w galerii/kartach)
+const WEBP_QUALITY = 80;
+let CWEBP_OK = null;
+function cwebpAvailable() {
+  if (CWEBP_OK !== null) return CWEBP_OK;
+  try { execFileSync('cwebp', ['-version'], { stdio: 'ignore' }); CWEBP_OK = true; }
+  catch { CWEBP_OK = false; console.warn('cwebp niedostepny — pomijam generowanie WebP.'); }
+  return CWEBP_OK;
+}
+// Wymiary JPEG/PNG z bufora (bez zaleznosci).
+function imageDims(buf) {
+  try {
+    if (buf[0] === 0xFF && buf[1] === 0xD8) { // JPEG
+      let i = 2;
+      while (i < buf.length) {
+        if (buf[i] !== 0xFF) { i++; continue; }
+        const m = buf[i + 1];
+        if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) {
+          return { h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) };
+        }
+        i += 2 + buf.readUInt16BE(i + 2);
+      }
+    } else if (buf.toString('ascii', 1, 4) === 'PNG') {
+      return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+    }
+  } catch { /* nieznany format */ }
+  return null;
+}
+// Generuje wariant .webp obok pliku zrodlowego (downscale dluzszego boku + q80). Zwraca true/false.
+function ensureWebp(absPath) {
+  if (!cwebpAvailable()) return false;
+  const ext = path.extname(absPath).toLowerCase();
+  if (!NEGOTIABLE_IMG.has(ext)) return false;
+  const dest = absPath.slice(0, -ext.length) + '.webp';
+  try {
+    const d = imageDims(fs.readFileSync(absPath));
+    const args = ['-quiet', '-q', String(WEBP_QUALITY)];
+    if (d && d.w && d.h) {
+      if (d.w >= d.h && d.w > WEBP_MAX) args.push('-resize', String(WEBP_MAX), '0');
+      else if (d.h > d.w && d.h > WEBP_MAX) args.push('-resize', '0', String(WEBP_MAX));
+    }
+    args.push(absPath, '-o', dest);
+    execFileSync('cwebp', args, { stdio: 'ignore' });
+    return true;
+  } catch (e) { try { fs.unlinkSync(dest); } catch {} return false; }
+}
+// Usuwa wariant .webp obok pliku (przy kasowaniu zdjecia).
+function removeWebp(absPath) {
+  const ext = path.extname(absPath).toLowerCase();
+  if (!NEGOTIABLE_IMG.has(ext)) return;
+  try { fs.unlinkSync(absPath.slice(0, -ext.length) + '.webp'); } catch {}
 }
 
 // ---- walidacja adresu (PL): dane musza byc realne, nie losowe ----
@@ -1705,7 +1775,7 @@ const server = http.createServer(async (req, res) => {
           const prod = db.getProductById(String(p.id || ''));
           if (!prod) return sendJson(res, 404, { error: 'Nie ma takiego produktu.' });
           let images = Array.isArray(prod.images) ? prod.images.slice() : (prod.image ? [prod.image] : []);
-          const unlinkByPath = (pub) => { try { fs.unlinkSync(path.join(UPLOADS_DIR, path.basename(String(pub)))); } catch {} };
+          const unlinkByPath = (pub) => { const ap = path.join(UPLOADS_DIR, path.basename(String(pub))); try { fs.unlinkSync(ap); } catch {} removeWebp(ap); };
 
           // usuniecie wszystkich zdjec
           if (p.remove) {
@@ -1731,7 +1801,9 @@ const server = http.createServer(async (req, res) => {
           const buf = Buffer.from(m[2], 'base64');
           if (buf.length > 4 * 1024 * 1024) return sendJson(res, 400, { error: 'Zdjecie za duze (max 4 MB).' });
           const fname = `${prod.id}-${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}.${ext}`;
-          fs.writeFileSync(path.join(UPLOADS_DIR, fname), buf);
+          const savedPath = path.join(UPLOADS_DIR, fname);
+          fs.writeFileSync(savedPath, buf);
+          ensureWebp(savedPath); // lzejszy wariant WebP serwowany przez negocjacje Accept
           images.push('/uploads/' + fname);
           db.setProductImages(prod.id, images);
           refreshProducts();
