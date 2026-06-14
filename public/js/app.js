@@ -115,6 +115,7 @@ async function fetchProducts() {
     return;
   }
   if ($('#productGrid')) renderProducts();
+  applyUrlFilters();
   if ($('#relatedGrid')) renderRelated();
   updatePpAvailability();
   if (document.body.dataset.page === 'wishlist') initWishlistPage();
@@ -252,8 +253,8 @@ function sortProducts(list, by) {
 function renderProducts() {
   const grid = $('#productGrid');
   let list = PRODUCTS.filter(p => currentFilter === 'all' || p.category === currentFilter);
-  // Podzial bluz na Meskie/Damskie (unisex pokazujemy w obu)
-  if (currentFilter === 'bluza' && currentGender !== 'all') {
+  // Podzial na Meskie/Damskie w obrebie kategorii (unisex pokazujemy w obu)
+  if (currentFilter !== 'all' && currentGender !== 'all') {
     list = list.filter(p => p.gender === currentGender || p.gender === 'unisex');
   }
   const q = searchQuery.trim().toLowerCase();
@@ -624,6 +625,20 @@ async function submitOrder(e) {
 }
 
 /* ====== Filtry (strona glowna) ====== */
+function categoryHasGenders(cat) {
+  return PRODUCTS.some(p => p.category === cat && (p.gender === 'meska' || p.gender === 'damska'));
+}
+// Filtry z adresu URL (np. wejscie z podstrony: /?kat=bluza&plec=damska#sklep)
+function applyUrlFilters() {
+  if (!$('#productGrid')) return;
+  const q = new URLSearchParams(location.search);
+  const kat = q.get('kat'), plec = q.get('plec');
+  if (!kat || !['all', 'bluza', 'koszulka'].includes(kat)) return;
+  setFilter(kat);
+  if (plec && ['meska', 'damska'].includes(plec)) setGender(plec);
+  const sklep = $('#sklep');
+  if (sklep) requestAnimationFrame(() => window.scrollTo({ top: sklep.offsetTop - 70, behavior: 'smooth' }));
+}
 function setFilter(f) {
   currentFilter = f;
   const titles = { all: 'Cała kolekcja', bluza: 'Bluzy', koszulka: 'Koszulki' };
@@ -636,9 +651,9 @@ function setFilter(f) {
   const sub = $('#shopSub'); if (sub) sub.textContent = subs[f];
   $$('#filters .chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
   $$('.nav-link').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
-  // Zakladki Meskie/Damskie tylko dla bluz; przy zmianie kategorii resetujemy
+  // Zakladki Meskie/Damskie dla kategorii, ktora ma produkty meskie/damskie; przy zmianie kategorii resetujemy
   const gt = $('#genderTabs');
-  if (gt) gt.hidden = (f !== 'bluza');
+  if (gt) gt.hidden = !(f !== 'all' && categoryHasGenders(f));
   currentGender = 'all';
   $$('#genderTabs .chip').forEach(c => c.classList.toggle('active', c.dataset.gender === 'all'));
   if ($('#productGrid')) renderProducts();
@@ -674,7 +689,18 @@ document.addEventListener('click', (e) => {
   // szybkie dodanie z karty (nie nawiguj do strony produktu)
   if (t.dataset && t.dataset.quick) { e.preventDefault(); e.stopPropagation(); addToCart(t.dataset.quick); return; }
 
-  // zakladki Meskie/Damskie (podzial bluz)
+  // nawigacja: kategoria + plec (rozwijane podmenu Meskie/Damskie)
+  if (t.dataset && t.dataset.filter && t.dataset.gender) {
+    if ($('#productGrid')) {
+      e.preventDefault();
+      setFilter(t.dataset.filter);
+      setGender(t.dataset.gender);
+      const sklep = $('#sklep'); if (sklep) window.scrollTo({ top: sklep.offsetTop - 70, behavior: 'smooth' });
+    }
+    return; // na innych stronach link (href) prowadzi do strony glownej z parametrami
+  }
+
+  // zakladki Meskie/Damskie (podzial w obrebie kategorii)
   if (t.dataset && t.dataset.gender) { e.preventDefault(); setGender(t.dataset.gender); return; }
 
   // wybor opcji (rozmiar/kolor) na stronie produktu
