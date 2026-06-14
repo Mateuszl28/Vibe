@@ -156,7 +156,7 @@ function initCartPage() {
   if (!cart.length) { box.innerHTML = '<p class="muted">Twój koszyk jest pusty. <a href="/#sklep" style="color:var(--accent)">Przejdź do sklepu →</a></p>'; return; }
   const items = cart.map((i) => {
     const p = PRODUCTS.find((x) => x.id === i.id); if (!p) return '';
-    const media = p.image ? `<img class="card-photo" src="${p.image}" alt="">` : productSvg(p);
+    const media = p.image ? `<img class="card-photo" src="${p.image}" alt="" width="62" height="76">` : productSvg(p);
     return `<div class="cart-item">
       <div class="cart-item-img">${media}</div>
       <div class="cart-item-info"><div class="ci-name">${p.name}</div><div class="ci-meta">${i.size} · <span>${i.color}</span></div>
@@ -218,7 +218,7 @@ function cardHtml(p, i) {
     : (avail <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
   const addBtn = sold ? '<button class="btn-add" type="button" disabled>Wyprzedane</button>'
     : `<button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button>`;
-  const media = p.image ? `<img class="card-photo" src="${p.image}" alt="${p.name}" loading="lazy">` : productSvg(p);
+  const media = p.image ? `<img class="card-photo" src="${p.image}" alt="${p.name}" width="800" height="1000" loading="lazy">` : productSvg(p);
   return `
     <a class="card${sold ? ' soldout' : ''}" href="/produkt/${p.id}" data-id="${p.id}" style="animation-delay:${i * 50}ms">
       <div class="card-img">

@@ -266,7 +266,7 @@ function buildGallery(p) {
   const main = `<div class="gallery-main"><img class="gallery-photo" id="galleryMain" src="${esc(imgs[0])}" alt="${esc(p.name)}"></div>`;
   if (imgs.length === 1) return main;
   const thumbs = imgs.map((src, i) =>
-    `<button type="button" class="gallery-thumb${i === 0 ? ' active' : ''}" data-src="${esc(src)}" aria-label="Zdjęcie ${i + 1}"><img src="${esc(src)}" alt=""></button>`
+    `<button type="button" class="gallery-thumb${i === 0 ? ' active' : ''}" data-src="${esc(src)}" aria-label="Zdjęcie ${i + 1}"><img src="${esc(src)}" alt="" width="64" height="64"></button>`
   ).join('');
   return main + `<div class="gallery-thumbs">${thumbs}</div>`;
 }
@@ -316,7 +316,7 @@ function serverCard(p) {
     : (avail <= 5 ? '<span class="badge low">Ostatnie sztuki</span>' : '');
   const addBtn = sold ? '<button class="btn-add" type="button" disabled>Wyprzedane</button>'
     : `<button class="btn-add" data-quick="${p.id}" type="button">Do koszyka</button>`;
-  const media = p.image ? `<img class="card-photo" src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">` : productCardSvg(p);
+  const media = p.image ? `<img class="card-photo" src="${esc(p.image)}" alt="${esc(p.name)}" width="800" height="1000" loading="lazy">` : productCardSvg(p);
   return `<a class="card${sold ? ' soldout' : ''}" href="/produkt/${p.id}" data-id="${p.id}">
     <div class="card-img">${media}<span class="badge cat">${p.category === 'bluza' ? 'Bluza' : 'Koszulka'}</span>${p.featured ? '<span class="badge hot">Bestseller</span>' : ''}${stockBadge}</div>
     <div class="card-body">
@@ -736,9 +736,15 @@ function serveStatic(req, res, urlPath) {
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
+    // Wersjonowane zasoby (?v=) sa odciskiem palca -> mozna cache'owac na rok i oznaczyc immutable.
+    // HTML nigdy nie cache'ujemy (no-cache). Reszta (niewersjonowane obrazy/fonty) -> 1 dzien.
+    const versioned = /[?&]v=/.test(urlPath);
+    const cacheControl = ext === '.html' ? 'no-cache'
+      : versioned ? 'public, max-age=31536000, immutable'
+      : 'public, max-age=86400';
     const headers = {
       'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=3600'
+      'Cache-Control': cacheControl
     };
     // Kompresja zasobow tekstowych (br/gzip). Binaria (obrazy/fonty) sa juz skompresowane.
     if (COMPRESSIBLE.has(ext)) {
