@@ -11,6 +11,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
+const zlib = require('zlib');
 const db = require('./lib/db');
 const auth = require('./lib/auth');
 const PRODUCT_I18N = require('./lib/product-i18n'); // tlumaczenia nazw/opisow produktow (SEO EN/DE)
@@ -735,12 +736,53 @@ function serveStatic(req, res, urlPath) {
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, {
+    const headers = {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=3600'
-    });
+    };
+    // Kompresja zasobow tekstowych (br/gzip). Binaria (obrazy/fonty) sa juz skompresowane.
+    if (COMPRESSIBLE.has(ext)) {
+      headers['Vary'] = 'Accept-Encoding';
+      const enc = pickEncoding(req.headers['accept-encoding']);
+      if (enc) {
+        try {
+          const buf = getCompressed(filePath, stat.mtimeMs, enc);
+          headers['Content-Encoding'] = enc;
+          res.writeHead(200, headers);
+          res.end(buf);
+          return;
+        } catch { /* w razie bledu kompresji — serwuj nieskompresowane */ }
+      }
+    }
+    res.writeHead(200, headers);
     fs.createReadStream(filePath).pipe(res);
   });
+}
+// Typy tekstowe warte kompresji (binaria pomijamy — sa juz skompresowane).
+const COMPRESSIBLE = new Set(['.js', '.css', '.svg', '.json', '.html', '.map', '.txt', '.xml', '.webmanifest', '.ico']);
+function pickEncoding(accept) {
+  const a = String(accept || '').toLowerCase();
+  if (a.includes('br')) return 'br';
+  if (a.includes('gzip')) return 'gzip';
+  return null;
+}
+// Cache skompresowanych buforow: klucz = sciezka+mtime+enc. Po deployu mtime sie zmienia -> auto-odswiezenie.
+const compCache = new Map();
+function getCompressed(filePath, mtimeMs, enc) {
+  const key = filePath + '|' + mtimeMs + '|' + enc;
+  let buf = compCache.get(key);
+  if (buf) return buf;
+  const raw = fs.readFileSync(filePath);
+  buf = enc === 'br'
+    ? zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 } })
+    : zlib.gzipSync(raw, { level: 9 });
+  // Ochrona pamieci: usuwamy wpisy tego pliku z innym mtime (po deployu plik ma nowy mtime).
+  const prefix = filePath + '|', curMtime = '|' + mtimeMs + '|';
+  for (const k of compCache.keys()) {
+    if (k.startsWith(prefix) && !k.includes(curMtime)) compCache.delete(k);
+  }
+  compCache.set(key, buf);
+  return buf;
 }
 
 // ---- walidacja adresu (PL): dane musza byc realne, nie losowe ----
