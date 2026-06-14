@@ -419,23 +419,31 @@ function buildJsonLd() {
     itemListElement: PRODUCTS.map((p, i) => ({
       '@type': 'ListItem',
       position: i + 1,
-      item: {
-        '@type': 'Product',
-        name: p.name,
-        category: p.category === 'bluza' ? 'Bluzy' : 'Koszulki',
-        description: p.description,
-        image: p.image ? SITE_URL + p.image : SITE_URL + '/img/produkt/' + p.id + '.svg',
-        brand: { '@type': 'Brand', name: 'Vibe' },
-        sku: String(p.id),
-        url: SITE_URL + '/produkt/' + p.id,
-        offers: {
-          '@type': 'Offer',
-          price: p.price.toFixed(2),
-          priceCurrency: 'PLN',
-          availability: availableStock(p) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-          url: SITE_URL + '/produkt/' + p.id
+      item: (() => {
+        const rt = p.rating || { avg: 0, count: 0 };
+        const prod = {
+          '@type': 'Product',
+          name: p.name,
+          category: p.category === 'bluza' ? 'Bluzy' : 'Koszulki',
+          description: p.description,
+          image: p.image ? SITE_URL + p.image : SITE_URL + '/img/produkt/' + p.id + '.svg',
+          brand: { '@type': 'Brand', name: 'Vibe' },
+          sku: String(p.id),
+          url: SITE_URL + '/produkt/' + p.id,
+          offers: {
+            '@type': 'Offer',
+            price: p.price.toFixed(2),
+            priceCurrency: 'PLN',
+            availability: availableStock(p) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+            url: SITE_URL + '/produkt/' + p.id
+          }
+        };
+        // AggregateRating tylko gdy sa prawdziwe opinie (wymog Google)
+        if (rt.count > 0) {
+          prod.aggregateRating = { '@type': 'AggregateRating', ratingValue: rt.avg.toFixed(1), reviewCount: rt.count, bestRating: '5' };
         }
-      }
+        return prod;
+      })()
     }))
   };
   return `<script type="application/ld+json">${JSON.stringify([store, itemList, buildFaqJsonLd()])}</script>`;
