@@ -467,6 +467,9 @@ function renderTemplate(absPath) {
 function getIndexHtml() {
   return renderTemplate(path.join(PUBLIC_DIR, 'index.html'));
 }
+function get404Html() {
+  return renderTemplate(path.join(PAGES_DIR, '404.html'));
+}
 
 // Osobne podstrony (czyste URL-e). Pliki w katalogu pages/ (poza public, nie serwowane statycznie).
 const PAGES_DIR = path.join(ROOT, 'pages');
@@ -735,9 +738,11 @@ function serveStatic(req, res, urlPath) {
   }
   fs.stat(filePath, (err, stat) => {
     if (err || !stat.isFile()) {
-      // SPA fallback -> wygenerowany index.html (z danymi SEO)
+      // Nieznany zasob -> prawdziwa strona 404 (status 404, nie soft-404 z trescia strony glownej)
       try {
-        sendHtml(res, getIndexHtml());
+        const html = get404Html();
+        res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+        res.end(html);
       } catch {
         res.writeHead(404);
         res.end('404 Not Found');
@@ -1455,7 +1460,10 @@ const server = http.createServer(async (req, res) => {
   if (method === 'GET' && pathOnly.startsWith('/produkt/')) {
     const id = pathOnly.slice('/produkt/'.length).replace(/\/$/, '');
     const p = PRODUCTS.find((x) => x.id === id);
-    if (!p) { res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end('<h1>404 — nie znaleziono produktu</h1><a href="/">Wróć do sklepu</a>'); }
+    if (!p) {
+      try { const h = get404Html(); res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(h); }
+      catch { res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end('<h1>404 — nie znaleziono produktu</h1><a href="/">Wróć do sklepu</a>'); }
+    }
     try {
       return sendHtml(res, localizePage(getProductHtml(p), lang, '/produkt/' + p.id));
     } catch (err) {

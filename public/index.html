@@ -35,9 +35,9 @@
   <!-- ===== Fonty ===== -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/css/styles.css?v=33" />
+  <link rel="stylesheet" href="/css/styles.css?v=34" />
 
   <!-- ===== Dane strukturalne (JSON-LD) — wstrzykiwane przez serwer ===== -->
   __JSONLD__
@@ -52,14 +52,14 @@
       <nav class="main-nav">
         <a href="#" data-filter="all" class="nav-link active">Wszystko</a>
         <div class="nav-item has-sub">
-          <a href="/?kat=bluza#sklep" data-filter="bluza" class="nav-link">Bluzy</a>
+          <a href="/?kat=bluza#sklep" aria-haspopup="true" data-filter="bluza" class="nav-link">Bluzy</a>
           <div class="nav-sub">
             <a href="/?kat=bluza&plec=meska#sklep" data-filter="bluza" data-gender="meska" class="nav-sublink">Męskie</a>
             <a href="/?kat=bluza&plec=damska#sklep" data-filter="bluza" data-gender="damska" class="nav-sublink">Damskie</a>
           </div>
         </div>
         <div class="nav-item has-sub">
-          <a href="/?kat=koszulka#sklep" data-filter="koszulka" class="nav-link">Koszulki</a>
+          <a href="/?kat=koszulka#sklep" aria-haspopup="true" data-filter="koszulka" class="nav-link">Koszulki</a>
           <div class="nav-sub">
             <a href="/?kat=koszulka&plec=meska#sklep" data-filter="koszulka" data-gender="meska" class="nav-sublink">Męskie</a>
             <a href="/?kat=koszulka&plec=damska#sklep" data-filter="koszulka" data-gender="damska" class="nav-sublink">Damskie</a>
