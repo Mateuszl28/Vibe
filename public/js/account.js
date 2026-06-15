@@ -85,7 +85,7 @@ function orderCard(o, admin) {
   const items = o.items.map((i) => `<div>${esc(i.name)} — ${esc(i.size)}/${esc(i.color)} ×${i.qty} <span class="muted">(${money(i.lineTotal)})</span></div>`).join('');
   const date = new Date(o.createdAt).toLocaleString('pl-PL');
   const statusCtrl = admin
-    ? `<select data-order="${esc(o.id)}">${['nowe', 'w realizacji', 'wyslane', 'zrealizowane', 'anulowane']
+    ? `<select data-order="${esc(o.id)}">${['oczekuje na płatność', 'opłacone', 'nowe', 'w realizacji', 'wyslane', 'zrealizowane', 'anulowane']
         .map((s) => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}</select>`
     : `<span class="${statusClass(o.status)}">${esc(o.status)}</span>`;
   return `<div class="order-card">

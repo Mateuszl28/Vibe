@@ -13,8 +13,10 @@ const path = require('path');
 const tls = require('tls');
 const zlib = require('zlib');
 const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 const db = require('./lib/db');
 const auth = require('./lib/auth');
+const p24 = require('./lib/p24'); // platnosci Przelewy24 (aktywne gdy ustawione zmienne P24_*)
 const PRODUCT_I18N = require('./lib/product-i18n'); // tlumaczenia nazw/opisow produktow (SEO EN/DE)
 // Slownik tlumaczen produktow wstrzykiwany do przegladarki, zeby klient (i18n.js)
 // tlumaczyl nazwy i opisy produktow (karty, strona produktu, koszyk).
@@ -1051,6 +1053,11 @@ async function handleCreateOrder(req, res, raw, user) {
   const parcelLocker = deliveryMethod === 'paczkomat' ? String(payload.parcelLocker || '').trim().toUpperCase() : '';
   const parcelLockerAddr = deliveryMethod === 'paczkomat' ? String(payload.parcelLockerAddress || '').trim().slice(0, 200) : '';
 
+  // Tryb platnosci: jesli P24 skonfigurowane -> platnosc online (status czeka na wplate),
+  // w przeciwnym razie fallback do przelewu tradycyjnego (status 'nowe').
+  const usingP24 = p24.isConfigured();
+  const payToken = usingP24 ? crypto.randomBytes(16).toString('hex') : '';
+
   const order = {
     id: db.nextOrderId(),
     user_id: user ? user.id : null,
@@ -1079,7 +1086,8 @@ async function handleCreateOrder(req, res, raw, user) {
     discount: Math.round(discount * 100) / 100,
     discountCode,
     total: Math.round(grandTotal * 100) / 100,
-    status: 'nowe'
+    status: usingP24 ? 'oczekuje na płatność' : 'nowe',
+    payToken
   };
   try {
     db.createOrder(order);
@@ -1099,6 +1107,44 @@ async function handleCreateOrder(req, res, raw, user) {
     console.error('Blad zapisu zamowienia:', err.message);
     return sendJson(res, 500, { error: 'Nie udalo sie zapisac zamowienia.' });
   }
+  // --- Platnosc online (Przelewy24) ---
+  if (usingP24) {
+    let tx;
+    try {
+      tx = await p24.registerTransaction({
+        sessionId: order.id,
+        amount: Math.round(order.total * 100), // grosze
+        currency: 'PLN',
+        description: `Zamówienie ${order.id} — Vibe`,
+        email: order.customer.email,
+        urlReturn: `${SITE_URL}/?zamowienie=${encodeURIComponent(order.id)}&t=${payToken}`,
+        urlStatus: `${SITE_URL}/api/p24/notify`
+      });
+    } catch (err) {
+      console.error(`[P24] Rejestracja transakcji ${order.id} nie powiodla sie:`, err.message);
+      // Rollback: oddaj stan magazynowy i usun zamowienie, zeby klient mogl sprobowac ponownie.
+      try {
+        for (const id in needPerProduct) {
+          const fresh = db.getProductById(id);
+          const need = needPerProduct[id];
+          if (fresh && fresh.variants && Object.keys(fresh.variants).length) {
+            const v = { ...fresh.variants };
+            for (const vk in need.variants) v[vk] = (parseInt(v[vk], 10) || 0) + need.variants[vk];
+            db.setVariants(id, v);
+          } else {
+            db.decrementStock(id, -need.total); // ujemna ilosc = zwrot na stan (MAX(0,...) bezpieczne)
+          }
+        }
+        db.deleteOrder(order.id);
+        refreshProducts();
+      } catch (rb) { console.error('[P24] Rollback po bledzie rejestracji:', rb.message); }
+      return sendJson(res, 502, { error: 'Nie udało się rozpocząć płatności. Spróbuj ponownie za chwilę.' });
+    }
+    console.log(`[ZAMOWIENIE] ${order.id} - ${order.customer.email} - ${order.total} zl - P24 (oczekuje na platnosc)${user ? ' (user ' + user.id + ')' : ''}`);
+    return sendJson(res, 201, { ok: true, orderId: order.id, payToken, redirectUrl: tx.link });
+  }
+
+  // --- Fallback: przelew tradycyjny (gdy P24 nieskonfigurowane) ---
   console.log(`[ZAMOWIENIE] ${order.id} - ${order.customer.email} - ${order.total} zl${user ? ' (user ' + user.id + ')' : ''}`);
   sendOrderEmails(order); // powiadomienia e-mail (klient + sklep), best-effort
   return sendJson(res, 201, {
@@ -1111,6 +1157,73 @@ async function handleCreateOrder(req, res, raw, user) {
       amount: order.total
     }
   });
+}
+
+// ---- Przelewy24: notyfikacja (webhook) i status platnosci ----
+// P24 wola ten adres po platnosci (server-to-server). Weryfikujemy podpis, potwierdzamy
+// transakcje (verify) i dopiero wtedy oznaczamy zamowienie jako oplacone + wysylamy maile.
+async function handleP24Notify(res, raw) {
+  let n;
+  try { n = JSON.parse(raw || '{}'); } catch { return sendJson(res, 400, { error: 'bad json' }); }
+
+  if (!p24.isConfigured() || !p24.verifyNotificationSign(n)) {
+    console.warn(`[P24] Notyfikacja z blednym podpisem (sesja ${n && n.sessionId}).`);
+    return sendJson(res, 400, { error: 'bad sign' });
+  }
+
+  const order = db.getOrder(String(n.sessionId || ''));
+  if (!order) {
+    console.warn(`[P24] Notyfikacja dla nieznanego zamowienia ${n.sessionId}.`);
+    return sendJson(res, 200, { ok: true }); // ack, zeby P24 nie ponawial w nieskonczonosc
+  }
+
+  // Kwota z notyfikacji musi zgadzac sie z zapisana wartoscia zamowienia (grosze).
+  const expectedAmount = Math.round(order.total * 100);
+  if (parseInt(n.amount, 10) !== expectedAmount) {
+    console.error(`[P24] Niezgodna kwota dla ${order.id}: notyfikacja ${n.amount}, oczekiwano ${expectedAmount}.`);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  // Idempotencja: jesli juz oplacone, tylko potwierdz.
+  if (order.status === 'opłacone') return sendJson(res, 200, { ok: true });
+
+  let confirmed = false;
+  try {
+    confirmed = await p24.verifyTransaction({
+      sessionId: order.id,
+      orderId: n.orderId,
+      amount: expectedAmount,
+      currency: n.currency || 'PLN'
+    });
+  } catch (err) {
+    console.error(`[P24] verify ${order.id} blad:`, err.message);
+    return sendJson(res, 500, { error: 'verify failed' }); // P24 ponowi notyfikacje
+  }
+
+  if (!confirmed) {
+    console.warn(`[P24] verify ${order.id} nie potwierdzone.`);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  db.setP24OrderId(order.id, n.orderId);
+  db.updateOrderStatus(order.id, 'opłacone');
+  console.log(`[P24] Zamowienie ${order.id} OPLACONE (P24 orderId ${n.orderId}).`);
+  // Maile (klient + sklep) dopiero po potwierdzonej platnosci.
+  sendOrderEmails(db.getOrder(order.id));
+  return sendJson(res, 200, { ok: true });
+}
+
+// Status platnosci dla strony powrotu: /api/p24/status?zamowienie=ID&t=TOKEN
+function handleP24Status(res, url) {
+  const q = new URLSearchParams((url.split('?')[1] || ''));
+  const id = String(q.get('zamowienie') || '');
+  const token = String(q.get('t') || '');
+  const order = id ? db.getOrder(id) : null;
+  // Token chroni przed podgladaniem cudzych zamowien (id sa sekwencyjne).
+  if (!order || !order.payToken || order.payToken !== token) {
+    return sendJson(res, 404, { error: 'Nie znaleziono zamówienia.' });
+  }
+  return sendJson(res, 200, { status: order.status, paid: order.status === 'opłacone' });
 }
 
 // ---- Uwierzytelnianie ----
@@ -1292,12 +1405,18 @@ function buildOrderEmailText(order) {
   if (order.customer.phone) lines.push(`  tel. ${order.customer.phone}`);
   lines.push(`  ${order.customer.email}`);
   lines.push('');
-  lines.push('--- PŁATNOŚĆ (przelew tradycyjny) ---');
-  lines.push(`Odbiorca: ${PAYMENT.recipient}`);
-  lines.push(`Nr konta${PAYMENT.bank ? ' (' + PAYMENT.bank + ')' : ''}: ${PAYMENT.account}`);
-  lines.push(`Tytuł przelewu: ${order.id}`);
-  lines.push(`Kwota: ${money(order.total)}`);
-  lines.push('Zamówienie realizujemy po zaksięgowaniu wpłaty.');
+  if (order.status === 'opłacone') {
+    lines.push('--- PŁATNOŚĆ ---');
+    lines.push(`Opłacone online (Przelewy24): ${money(order.total)}`);
+    lines.push('Płatność zaksięgowana — zamówienie kierujemy do realizacji.');
+  } else {
+    lines.push('--- PŁATNOŚĆ (przelew tradycyjny) ---');
+    lines.push(`Odbiorca: ${PAYMENT.recipient}`);
+    lines.push(`Nr konta${PAYMENT.bank ? ' (' + PAYMENT.bank + ')' : ''}: ${PAYMENT.account}`);
+    lines.push(`Tytuł przelewu: ${order.id}`);
+    lines.push(`Kwota: ${money(order.total)}`);
+    lines.push('Zamówienie realizujemy po zaksięgowaniu wpłaty.');
+  }
   return lines.join('\n') + '\n';
 }
 
@@ -1474,6 +1593,21 @@ const server = http.createServer(async (req, res) => {
 
   // API
   if (url.startsWith('/api/')) {
+    // Webhook P24 (notyfikacja server-to-server) — MUSI byc przed kontrola CSRF,
+    // bo nie pochodzi z naszego origin. Autentycznosc gwarantuje podpis CRC.
+    if (method === 'POST' && pathOnly === '/api/p24/notify') {
+      try {
+        const raw = await readBody(req);
+        return await handleP24Notify(res, raw);
+      } catch (err) {
+        console.error('[P24] Blad odczytu notyfikacji:', err.message);
+        return sendJson(res, 400, { error: 'bad request' });
+      }
+    }
+    // Status platnosci (dla strony powrotu) — GET z tokenem, bez ujawniania cudzych zamowien.
+    if (method === 'GET' && pathOnly === '/api/p24/status') {
+      return handleP24Status(res, url);
+    }
     // CSRF: zadania zmieniajace stan musza pochodzic z tego samego origin.
     if (method !== 'GET' && method !== 'HEAD' && !sameOrigin(req)) {
       return sendJson(res, 403, { error: 'Nieprawidlowe zrodlo zadania (CSRF).' });
@@ -1677,7 +1811,7 @@ const server = http.createServer(async (req, res) => {
       if (method === 'POST' && url === '/api/admin/order-status') {
         try {
           const p = JSON.parse(await readBody(req) || '{}');
-          const allowed = ['nowe', 'w realizacji', 'wyslane', 'zrealizowane', 'anulowane'];
+          const allowed = ['oczekuje na płatność', 'opłacone', 'nowe', 'w realizacji', 'wyslane', 'zrealizowane', 'anulowane'];
           if (!p.id || !allowed.includes(p.status)) return sendJson(res, 400, { error: 'Niepoprawne dane.' });
           const ok = db.updateOrderStatus(String(p.id), p.status);
           return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Nie znaleziono zamowienia.' });

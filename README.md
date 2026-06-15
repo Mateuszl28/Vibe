@@ -272,14 +272,48 @@ Jeśli kiedyś zechcesz `sklep.twojadomena.pl` zamiast `:8080` — zobacz
 
 ## Płatności
 
-Sklep działa w modelu **przelewu tradycyjnego**: po złożeniu zamówienia klient od razu widzi
-**instrukcję przelewu do skopiowania** (odbiorca, nr konta, **tytuł = numer zamówienia**, kwota)
-oraz dostaje te dane w e-mailu potwierdzającym. Realizacja po zaksięgowaniu wpłaty. Dane do przelewu
-ustawia się w `server.js` (stała `PAYMENT`) lub przez env `PAY_ACCOUNT` / `PAY_RECIPIENT` / `PAY_BANK`.
+**Płatność online przez Przelewy24** (gdy ustawione zmienne `P24_*`, p. niżej). Po złożeniu
+zamówienia serwer rejestruje transakcję w P24 (`POST /transaction/register`), klient jest
+przekierowywany na bramkę (BLIK / karta / szybki przelew), a po wpłacie P24 woła webhook
+`POST /api/p24/notify` — serwer weryfikuje podpis CRC, potwierdza transakcję (`PUT /transaction/verify`),
+ustawia status zamówienia na **`opłacone`** i dopiero wtedy wysyła maile (klient + sklep).
+Klient wraca na `/?zamowienie=<ID>&t=<token>`, gdzie front odpytuje `GET /api/p24/status`.
+
+Konfiguracja (sekrety — **nie trafiają do repo**, ustaw przez systemd, p. niżej):
+
+| Zmienna | Znaczenie |
+|---|---|
+| `P24_MERCHANT_ID` | ID sprzedawcy (liczba) |
+| `P24_POS_ID` | ID sklepu/POS (domyślnie = merchant ID) |
+| `P24_CRC` | klucz CRC z panelu P24 |
+| `P24_API_KEY` | klucz do API (hasło Basic Auth REST) |
+| `P24_SANDBOX` | `true` = sandbox, `false` = produkcja (domyślnie `true`) |
+
+Logika integracji jest w `lib/p24.js` (czysty Node, zero zależności). **Gdy brak kompletu zmiennych
+`P24_*`, moduł leży bezczynnie i sklep wraca do modelu przelewu tradycyjnego**: klient widzi
+**instrukcję przelewu do skopiowania** (odbiorca, nr konta, tytuł = numer zamówienia, kwota) i dostaje
+ją mailem. Dane przelewu: env `PAY_ACCOUNT` / `PAY_RECIPIENT` / `PAY_BANK` lub stała `PAYMENT` w `server.js`.
+
 Powiadomienie o nowym zamówieniu trafia na stały zestaw adresów biznesowych:
 `kontakt@vibeleszno.com` + `vip@vipnieruchomosci.eu` (rozszerzalne przez `ORDER_NOTIFY_TO`),
-a klient dostaje osobne potwierdzenie na swój e-mail. Integrację bramki (Stripe / Przelewy24)
-można dodać w `POST /api/orders`.
+a klient dostaje osobne potwierdzenie na swój e-mail.
+
+### Klucze P24 na serwerze (drop-in systemd)
+
+Sekrety wgrywamy poza repo, jako nakładkę na usługę:
+
+```bash
+mkdir -p /etc/systemd/system/vibe-sklep.service.d
+cat > /etc/systemd/system/vibe-sklep.service.d/p24.conf <<'EOF'
+[Service]
+Environment=P24_MERCHANT_ID=402226
+Environment=P24_POS_ID=402226
+Environment=P24_CRC=...
+Environment=P24_API_KEY=...
+Environment=P24_SANDBOX=false
+EOF
+systemctl daemon-reload && systemctl restart vibe-sklep
+```
 
 > **Dostawa:** wybór **Kurier / Paczkomat** w kasie (przy paczkomacie wymagany kod), koszt 25 zł
 > (ustawienie `Koszt dostawy` w panelu / `shipping_cost` w bazie).

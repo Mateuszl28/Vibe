@@ -384,8 +384,8 @@ function checkoutFormHtml() {
         <input type="checkbox" name="acceptTerms" required style="margin-top:3px;flex:0 0 auto" />
         <span>Akceptuję <a href="/regulamin" target="_blank" rel="noopener">regulamin sklepu</a></span>
       </label>
-      <button type="submit" class="btn btn-primary btn-block">Zamawiam</button>
-      <p class="muted small">Płatność: przelew tradycyjny. Dane do przelewu (z numerem zamówienia w tytule) pokażemy zaraz po złożeniu zamówienia i wyślemy na e-mail.</p>
+      <button type="submit" class="btn btn-primary btn-block">Zamawiam i płacę</button>
+      <p class="muted small">Płatność online przez Przelewy24 — BLIK, karta lub szybki przelew. Po kliknięciu przejdziesz do bezpiecznej bramki płatności.</p>
     </form>`;
 }
 function checkoutTotals() {
@@ -606,6 +606,19 @@ async function submitOrder(e) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Błąd zamówienia');
     cart = []; saveCart();
+    // Płatność online (Przelewy24): przekierowanie na bramkę.
+    if (data.redirectUrl) {
+      $('#checkoutContent').innerHTML = `
+        <div class="success-box">
+          <div class="check">💳</div>
+          <h3>Przekierowujemy do płatności…</h3>
+          <p class="muted">Za chwilę otworzy się bezpieczna bramka Przelewy24.</p>
+          <p class="muted small">Jeśli nic się nie dzieje, <a href="${data.redirectUrl}">kliknij tutaj</a>.</p>
+        </div>`;
+      window.location.href = data.redirectUrl;
+      return;
+    }
+    // Fallback: przelew tradycyjny (gdy płatności online wyłączone).
     $('#checkoutContent').innerHTML = `
       <div class="success-box">
         <div class="check">✅</div>
@@ -868,6 +881,43 @@ async function initAccountHeader() {
   } catch {}
 }
 
+/* ====== Powrót z bramki Przelewy24 ====== */
+// Po płatności P24 przekierowuje na /?zamowienie=ID&t=TOKEN. Pokazujemy status i odpytujemy serwer.
+// Faktyczne zaksięgowanie potwierdza webhook (server-to-server) — tu tylko prezentujemy wynik.
+async function initP24Return() {
+  const q = new URLSearchParams(location.search);
+  const id = q.get('zamowienie');
+  const token = q.get('t');
+  if (!id || !token) return;
+  // Wyczysc adres, zeby odswiezenie nie powtarzalo ekranu.
+  try { history.replaceState(null, '', location.pathname + location.hash); } catch {}
+  const modal = $('#checkoutModal'); const content = $('#checkoutContent');
+  if (!modal || !content) return;
+  const box = (icon, title, msg) => `
+    <div class="success-box">
+      <div class="check">${icon}</div>
+      <h3>${title}</h3>
+      <p class="muted">Numer zamówienia:</p>
+      <p class="order-id">${id}</p>
+      <p class="muted">${msg}</p>
+      <button class="btn btn-primary btn-block" style="margin-top:14px" data-close-checkout>Wróć do sklepu</button>
+    </div>`;
+  content.innerHTML = box('⏳', 'Weryfikujemy płatność…', 'To potrwa kilka sekund.');
+  modal.hidden = false;
+  const url = `/api/p24/status?zamowienie=${encodeURIComponent(id)}&t=${encodeURIComponent(token)}`;
+  for (let i = 0; i < 12; i++) {
+    try {
+      const r = await fetch(url);
+      if (r.ok) {
+        const d = await r.json();
+        if (d.paid) { content.innerHTML = box('✅', 'Płatność potwierdzona — dziękujemy!', 'Potwierdzenie wysłaliśmy na Twój e-mail.'); return; }
+      }
+    } catch {}
+    await new Promise((res) => setTimeout(res, 2500));
+  }
+  content.innerHTML = box('🕒', 'Płatność w trakcie księgowania', 'Gdy tylko ją potwierdzimy, wyślemy e-mail. Status sprawdzisz też w „Moje zamówienia”.');
+}
+
 /* ====== Start ====== */
 renderHero();
 renderCartCount();
@@ -879,3 +929,4 @@ initShopTools();
 applyReveal();
 initReviews();
 fetchProducts();
+initP24Return();
