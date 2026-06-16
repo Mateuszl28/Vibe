@@ -1112,7 +1112,7 @@ async function handleCreateOrder(req, res, raw, user) {
     let tx;
     try {
       tx = await p24.registerTransaction({
-        sessionId: order.id,
+        sessionId: `${order.id}.${payToken}`, // unikalne na kazda probe (chroni przed kolizja sesji w P24)
         amount: Math.round(order.total * 100), // grosze
         currency: 'PLN',
         description: `Zamówienie ${order.id} — Vibe`,
@@ -1171,9 +1171,13 @@ async function handleP24Notify(res, raw) {
     return sendJson(res, 400, { error: 'bad sign' });
   }
 
-  const order = db.getOrder(String(n.sessionId || ''));
-  if (!order) {
-    console.warn(`[P24] Notyfikacja dla nieznanego zamowienia ${n.sessionId}.`);
+  // sessionId ma postac "<orderId>.<payToken>" (payToken zapewnia unikalnosc sesji w P24
+  // przy kazdej probie platnosci, nawet gdy numer zamowienia zostalby kiedys ponownie uzyty).
+  const sid = String(n.sessionId || '');
+  const orderId = sid.split('.')[0];
+  const order = orderId ? db.getOrder(orderId) : null;
+  if (!order || `${order.id}.${order.payToken}` !== sid) {
+    console.warn(`[P24] Notyfikacja dla nieznanego/niezgodnego zamowienia (sesja ${sid}).`);
     return sendJson(res, 200, { ok: true }); // ack, zeby P24 nie ponawial w nieskonczonosc
   }
 
@@ -1190,7 +1194,7 @@ async function handleP24Notify(res, raw) {
   let confirmed = false;
   try {
     confirmed = await p24.verifyTransaction({
-      sessionId: order.id,
+      sessionId: sid,
       orderId: n.orderId,
       amount: expectedAmount,
       currency: n.currency || 'PLN'
